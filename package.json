@@ -16,6 +16,7 @@
     "framer-motion": "^11.11.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "unzipper": "^0.12.5",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
@@ -33,15 +34,29 @@
   "build": {
     "appId": "com.noemoe5.novelreader",
     "productName": "NovelReader",
-    "files": ["dist/**/*", "electron/**/*", "package.json", "!node_modules/**/*"],
-    "directories": { "output": "../nr_out" },
-    "win": { "target": ["nsis", "portable"] },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "directories": {
+      "output": "../nr_out"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "shortcutName": "NovelReader"
     },
-    "portable": { "artifactName": "NovelReader-portable-${version}.exe" }
+    "portable": {
+      "artifactName": "NovelReader-portable-${version}.exe"
+    }
   }
 }

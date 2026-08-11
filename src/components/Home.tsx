@@ -35,8 +35,8 @@ export default function Home({ onOpen }: { onOpen: (b: Book) => void }) {
       const paths: string[] = await api.openFiles()
       const imported: Book[] = []
       for (const p of paths) {
-        const b64: string | { error: string } = await api.readFile(p)
-        if (typeof b64 === 'string') imported.push(await importBook(b64, p))
+        const info = await api.openBook(p)
+        if (info && !(info as any).error) imported.push(await importBook(info, p))
       }
       addBooks(imported)
     } finally {

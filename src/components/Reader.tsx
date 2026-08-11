@@ -6,7 +6,7 @@ import { useStore } from '../store/useStore'
 import { THEMES } from '../theme/themes'
 import { tr } from '../i18n'
 import { speak } from '../lib/tts'
-import { base64ToArrayBuffer, base64ToText, uuid } from '../lib/util'
+import { uuid } from '../lib/util'
 import TocDrawer from './TocDrawer'
 import BookmarksDrawer from './BookmarksDrawer'
 import { IconBack, IconToc, IconBookmark, IconSpeaker, IconPause, IconPrev, IconNext, IconSettings, IconPlus } from './icons'
@@ -77,17 +77,17 @@ export default function Reader({ book, onClose }: { book: Book; onClose: () => v
     ;(async () => {
       const api = (window as any).electronAPI
       if (!api) { setLoading(false); return }
-      const b64: string | { error: string } = await api.readFile(book.path)
-      if (typeof b64 !== 'string') { setLoading(false); return }
+      // 主进程流式解压（大文件也安全），epub 返回 nrbook:// 协议基址走目录加载，不再整包解压
+      const info: any = await api.openBook(book.path)
+      if (!info || info.error) { setLoading(false); dbg({ err: 'open-book: ' + (info?.error || 'unknown') }); return }
 
       if (book.kind === 'txt') {
-        setTxt(base64ToText(b64))
+        setTxt(info.text || '')
         setLoading(false)
         return
       }
 
-      const buf = base64ToArrayBuffer(b64)
-      const epub = ePub(buf)
+      const epub = ePub(info.baseUrl)
       bookRef.current = epub
       await epub.ready
       // 生成 locations 以得到准确阅读百分比（否则 loc.start.percentage 为 undefined → 进度恒为 0）
