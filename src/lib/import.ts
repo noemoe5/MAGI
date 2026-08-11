@@ -56,7 +56,7 @@ function parseOpf(xml: string): { title: string; creator: string; coverHref: str
   return { title, creator, coverHref }
 }
 
-// 把相对 href 基于 opf 路径解析成 nrbook://<id>/... 绝对地址
+// 把相对 href 基于 opf 路径解析成 http://.../<id>/... 绝对地址
 function resolveHref(baseUrl: string, opfPath: string, href: string): string {
   const opfUrl = baseUrl + '/' + opfPath
   try {
@@ -70,7 +70,7 @@ function resolveHref(baseUrl: string, opfPath: string, href: string): string {
 
 /**
  * 导入一本书的元数据。info 来自主进程 open-book：
- * - epub: { kind:'epub', baseUrl:'nrbook://<id>' } —— 经自定义协议按需 fetch 元数据，不整包解压
+ * - epub: { kind:'epub', baseUrl:'http://127.0.0.1:<port>/<id>/' } —— 经本地 HTTP 按需 fetch 元数据，不整包解压
  * - txt:  { kind:'txt', text }
  * 这样 600MB 大 EPUB 也能秒级导入（只解压到磁盘、按需读单文件）。
  */

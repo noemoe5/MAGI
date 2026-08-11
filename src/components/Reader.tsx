@@ -77,7 +77,7 @@ export default function Reader({ book, onClose }: { book: Book; onClose: () => v
     ;(async () => {
       const api = (window as any).electronAPI
       if (!api) { setLoading(false); return }
-      // 主进程流式解压（大文件也安全），epub 返回 nrbook:// 协议基址走目录加载，不再整包解压
+      // 主进程流式解压（大文件也安全），epub 返回 http 基址走目录加载，不再整包解压
       const info: any = await api.openBook(book.path)
       if (!info || info.error) { setLoading(false); dbg({ err: 'open-book: ' + (info?.error || 'unknown') }); return }
 

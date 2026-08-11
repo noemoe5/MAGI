@@ -1,20 +1,29 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const http = require('http')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
 const unzipper = require('unzipper')
 
-// 自定义协议：把「解压后的 EPUB 目录」暴露给渲染进程。
-// EPUB.js 走 directory 模式时只会按需 fetch 单个文件（container.xml / opf / 章节 / 图片），
-// 不再用 JSZip 把整本 zip 解压进内存 —— 这是支持几百 MB 大文件的关键。
-protocol.registerSchemesAsPrivileged([
-  { scheme: 'nrbook', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true } }
-])
+// 大文件(EPUB)加载方案：
+// 主进程把 epub 流式解压到临时目录(内存 O(1)，不会把整本塞进内存)，
+// 再用本地 HTTP 服务把解压目录暴露给渲染进程。EPUB.js 走 directory 模式，
+// 只按需 fetch 单个文件(container.xml / opf / 章节 / 图片)，彻底绕开 JSZip 整包解压。
+// —— 这是支持几百 MB 甚至 GB 级 EPUB 的关键（自定义协议会被 epubjs 的 URL 解析破坏，故用 http）。
 
-let mainWindow
+const MIME = {
+  '.xhtml': 'application/xhtml+xml', '.html': 'text/html', '.htm': 'text/html',
+  '.opf': 'application/oebps-package+xml', '.ncx': 'application/x-dtbncx+xml',
+  '.xml': 'application/xml', '.css': 'text/css', '.js': 'text/javascript',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif', '.svg': 'image/svg+xml', '.webp': 'image/webp',
+  '.avif': 'image/avif', '.tiff': 'image/tiff',
+  '.ttf': 'font/ttf', '.otf': 'font/otf', '.woff': 'font/woff', '.woff2': 'font/woff2',
+  '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.mp4': 'video/mp4', '.ogg': 'audio/ogg',
+  '.txt': 'text/plain'
+}
 
-// 解压缓存目录（临时目录，按 路径+大小+修改时间 计算 id，文件变了自动失效重解压）
-function epubDir() {
+function bookRoot() {
   return path.join(app.getPath('temp'), 'nr-epub')
 }
 
@@ -26,7 +35,7 @@ function hashId(p, size, mtime) {
 function ensureExtracted(p) {
   const stat = fs.statSync(p)
   const id = hashId(p, stat.size, stat.mtimeMs)
-  const dir = path.join(epubDir(), id)
+  const dir = path.join(bookRoot(), id)
   const marker = path.join(dir, '.extracted')
   if (fs.existsSync(marker)) return Promise.resolve(id)
   try { fs.rmSync(dir, { recursive: true, force: true }) } catch { /* ignore */ }
@@ -45,29 +54,40 @@ function ensureExtracted(p) {
   })
 }
 
-function registerBookProtocol() {
-  protocol.registerFileProtocol('nrbook', (request, callback) => {
+// 本地 HTTP 服务：把 /<id>/<relpath> 映射到解压目录。随机端口，渲染进程经 http 按需取文件。
+let bookServer = null
+let bookBaseUrl = ''
+function startBookServer() {
+  if (bookServer) return
+  bookServer = http.createServer((req, res) => {
     try {
-      const u = new URL(request.url)
-      const id = u.hostname
-      let rel = decodeURIComponent(u.pathname) // 形如 /META-INF/container.xml
-      // 规范化并阻止 ../ 路径穿越
-      const normalized = path.normalize(rel).replace(/^(\.\.[/\\])+/, '')
-      const filePath = path.join(epubDir(), id, normalized)
+      const u = new URL(req.url, 'http://localhost')
+      const parts = u.pathname.split('/').filter(Boolean) // [id, ...rel]
+      if (parts.length === 0) { res.writeHead(400); return res.end('bad path') }
+      const id = parts[0]
+      const rel = '/' + decodeURIComponent(parts.slice(1).join('/'))
+      const filePath = path.normalize(path.join(bookRoot(), id, rel))
       const rp = path.resolve(filePath)
-      const base = path.resolve(epubDir())
-      if (rp !== base && !rp.startsWith(base + path.sep)) {
-        callback({ error: -6 }) // 越界，拒绝
-        return
-      }
-      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-        callback({ error: -6 })
-        return
-      }
-      callback({ path: filePath })
+      const base = path.resolve(bookRoot())
+      // 阻止 ../ 路径穿越
+      if (rp !== base && !rp.startsWith(base + path.sep)) { res.writeHead(403); return res.end('forbidden') }
+      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) { res.writeHead(404); return res.end('not found') }
+      const ext = path.extname(filePath).toLowerCase()
+      res.writeHead(200, {
+        'Content-Type': MIME[ext] || 'application/octet-stream',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=3600'
+      })
+      fs.createReadStream(filePath).pipe(res)
     } catch (e) {
-      callback({ error: -2 })
+      res.writeHead(500)
+      res.end(String(e))
     }
+  })
+  bookServer.listen(0, '127.0.0.1', () => {
+    const port = bookServer.address().port
+    bookBaseUrl = `http://127.0.0.1:${port}/`
+    console.log('[nr] book http server on', bookBaseUrl)
   })
 }
 
@@ -76,7 +96,7 @@ function libPath() {
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const mainWindow = new BrowserWindow({
     width: 1180,
     height: 820,
     minWidth: 820,
@@ -109,7 +129,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  registerBookProtocol()
+  startBookServer()
   createWindow()
 })
 
@@ -123,14 +143,14 @@ app.on('window-all-closed', () => {
 
 // 打开系统文件选择框，返回选中路径
 ipcMain.handle('open-files', async () => {
-  const res = await dialog.showOpenDialog(mainWindow, {
+  const res = await dialog.showOpenDialog(null, {
     properties: ['openFile', 'multiSelections'],
     filters: [{ name: 'Books', extensions: ['epub', 'txt'] }]
   })
   return res.canceled ? [] : res.filePaths
 })
 
-// 打开书：epub 流式解压到临时目录并返回 nrbook:// 协议基址（渲染进程按目录加载，不再整包解压）；
+// 打开书：epub 流式解压到临时目录并返回 http 基址（渲染进程按目录加载，不再整包解压）；
 // txt 直接读全文返回文本。大文件（数百 MB）也能加载，因为解压是流式写盘、阅读时按需取单文件。
 ipcMain.handle('open-book', async (e, p) => {
   if (!p || typeof p !== 'string') return { error: 'invalid path' }
@@ -144,7 +164,7 @@ ipcMain.handle('open-book', async (e, p) => {
   }
   try {
     const id = await ensureExtracted(p)
-    return { kind: 'epub', baseUrl: `nrbook://${id}` }
+    return { kind: 'epub', baseUrl: `${bookBaseUrl}${id}/` }
   } catch (err) {
     return { error: String(err) }
   }
@@ -182,8 +202,6 @@ ipcMain.handle('write-library', (e, data) => {
 
 ipcMain.handle('get-path', () => app.getPath('userData'))
 
-ipcMain.on('win-min', () => mainWindow && mainWindow.minimize())
-ipcMain.on('win-max', () =>
-  mainWindow && (mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize())
-)
-ipcMain.on('win-close', () => mainWindow && mainWindow.close())
+ipcMain.on('win-min', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.minimize() })
+ipcMain.on('win-max', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) (w.isMaximized() ? w.unmaximize() : w.maximize()) })
+ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.close() })
