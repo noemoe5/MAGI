@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist_old/
+build_out/
+release/
+
+# electron-builder artifacts (per-target temp dirs)
+out_dir_*/
+out_nsis_*/
+out_port_*/
+out_port2_*/
+
+# diagnostics / temp helper scripts
+list_broken.cjs
+scan_broken.cjs
+
+# os / editor
+.DS_Store
+Thumbs.db
+*.log
