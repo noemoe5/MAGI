@@ -9,7 +9,7 @@ import { speak } from '../lib/tts'
 import { uuid } from '../lib/util'
 import TocDrawer from './TocDrawer'
 import BookmarksDrawer from './BookmarksDrawer'
-import { IconBack, IconToc, IconBookmark, IconSpeaker, IconPause, IconPrev, IconNext, IconSettings, IconPlus } from './icons'
+import { IconBack, IconToc, IconBookmark, IconSpeaker, IconPause, IconPrev, IconNext, IconSettings, IconPlus, IconBook, IconTag, IconSave, IconClose } from './icons'
 
 interface TocNode { label: string; href: string; level: number }
 interface GoResult { advanced: boolean; atEnd: boolean }
@@ -40,6 +40,7 @@ export default function Reader({ book, onClose }: { book: Book; onClose: () => v
   const bookmarksOpen = useStore((s) => s.bookmarksOpen)
   const addBookmark = useStore((s) => s.addBookmark)
   const addHighlight = useStore((s) => s.addHighlight)
+  const addNote = useStore((s) => s.addNote)
   const lang = settings.lang
 
   const viewerRef = useRef<HTMLDivElement>(null)
@@ -55,6 +56,7 @@ export default function Reader({ book, onClose }: { book: Book; onClose: () => v
   const readingRef = useRef(false)          // 朗读模式是否进行中
   const resolveRef = useRef<null | (() => void)>(null)  // 用于打断当前音频等待
   const roRef = useRef<any>(null)                        // ResizeObserver，容器尺寸变化重排分页
+  const selCfiRef = useRef('')                           // 划词选区对应的 CFI（收藏笔记时带上）
   const modeRef = useRef<'vertical' | 'horizontal'>(settings.readerMode) // 当前翻页方向（go/readLoop 读取最新值）
 
   const [toc, setToc] = useState<TocNode[]>([])
@@ -64,6 +66,8 @@ export default function Reader({ book, onClose }: { book: Book; onClose: () => v
   const [ttsError, setTtsError] = useState('')
   const [loading, setLoading] = useState(true)
   const [txt, setTxt] = useState('')
+  // 选中的正文文字（划词查阅浮条的 seed）
+  const [sel, setSel] = useState('')
   // 诊断面板（按 D 键开关；默认开，便于定位「空白/翻不动」根因）
   const [showDebug, setShowDebug] = useState(true)
   const [debug, setDebug] = useState<{ size: string; idx: string; href: string; pct: string; err: string; txtLen: string; scrollH: string }>(
@@ -150,10 +154,13 @@ export default function Reader({ book, onClose }: { book: Book; onClose: () => v
       rendition.on('loadError', (e: any) => { dbg({ err: 'loadError: ' + (e?.message || e) }) })
       rendition.on('selected', (cfi: string, contents: any) => {
         try {
-          const text = contents.window.getSelection().toString()
+          const text = contents.window.getSelection().toString().trim()
           if (text) {
             rendition.highlight(cfi, { fill: settings.accent + '55' }, () => {})
             addHighlight({ id: uuid(), bookId: book.id, cfi, text })
+            // 划词浮条：让用户直接「查阅」或「收藏」选中的文字
+            selCfiRef.current = cfi
+            setSel(text)
           }
         } catch { /* ignore */ }
       })
@@ -530,11 +537,34 @@ export default function Reader({ book, onClose }: { book: Book; onClose: () => v
 
   const barCls = (pos: 'top' | 'bottom') => `reader-bar ${pos} ${barShow ? '' : 'hidden'}`
 
+  // —— 划词查阅 ——
+  /** txt 书没有 EPUB rendition 的选区事件，用原生 selection 兜住 */
+  function onTxtSelect() {
+    const t = window.getSelection()?.toString().trim()
+    if (t) { selCfiRef.current = ''; setSel(t) }
+  }
+  function lookupSelection() {
+    if (!sel.trim()) return
+    const s = useStore.getState()
+    s.setLookupSeed(sel.trim())
+    s.setLookupOpen(true)
+    setSel('')
+  }
+  function saveSelectionNote() {
+    const text = sel.trim()
+    if (!text) return
+    addNote({
+      id: uuid(), bookId: book.id, cfi: selCfiRef.current || undefined,
+      query: text.slice(0, 60), content: text, source: 'manual', createdAt: Date.now()
+    })
+    setSel('')
+  }
+
   return (
     <div className='reader' onMouseMove={poke}>
       <div className='reader-stage'>
         {book.kind === 'txt' ? (
-          <motion.div ref={txtRef} className='txt-flow' animate={controls}
+          <motion.div ref={txtRef} className='txt-flow' animate={controls} onMouseUp={onTxtSelect}
             style={{ '--fs': settings.fontSize + 'px', '--lh': settings.lineHeight, whiteSpace: 'pre-wrap' } as any}>
             {txt}
           </motion.div>
@@ -551,6 +581,28 @@ export default function Reader({ book, onClose }: { book: Book; onClose: () => v
             <div className='tap-zone' style={{ left: '28%', right: '28%', width: 'auto' }} onClick={() => setBarShow((v) => !v)} />
           </>
         )}
+
+        {/* 划词浮条：选中正文后直接查阅 / 收藏 */}
+        <AnimatePresence>
+          {!!sel && (
+            <motion.div className='sel-chip'
+              initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 14, scale: 0.96 }} transition={{ duration: 0.18 }}>
+              <span className='sel-chip-txt' title={sel}>
+                {sel.length > 46 ? sel.slice(0, 46) + '…' : sel}
+              </span>
+              <button className='sel-chip-btn primary' onClick={lookupSelection}>
+                <IconBook size={14} /> {tr(lang, 'lookup')}
+              </button>
+              <button className='sel-chip-btn' onClick={saveSelectionNote}>
+                <IconSave size={14} /> {tr(lang, 'saveNote')}
+              </button>
+              <button className='sel-chip-x' title={tr(lang, 'close')} onClick={() => setSel('')}>
+                <IconClose size={13} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {loading && <div className='loading'><span className='spin' /> {tr(lang, 'read')}…</div>}
 
@@ -583,6 +635,8 @@ export default function Reader({ book, onClose }: { book: Book; onClose: () => v
         <button className='icon-btn' title={tr(lang, 'back')} onClick={onClose}><IconBack size={18} /></button>
         <button className='icon-btn' title={tr(lang, 'toc')} onClick={() => useStore.getState().setTocOpen(true)}><IconToc size={18} /></button>
         <button className='icon-btn' title={tr(lang, 'bookmarks')} onClick={() => useStore.getState().setBookmarksOpen(true)}><IconBookmark size={18} /></button>
+        <button className='icon-btn' title={tr(lang, 'research')} onClick={() => useStore.getState().setLookupOpen(true)}><IconBook size={18} /></button>
+        <button className='icon-btn' title={tr(lang, 'literature')} onClick={() => useStore.getState().setLiteratureOpen(true)}><IconTag size={18} /></button>
         {settings.tts.enabled && (
           <button className='icon-btn' title={reading ? tr(lang, 'pause') : tr(lang, 'speak')} onClick={onReadToggle}>
             {reading ? <IconPause size={18} /> : <IconSpeaker size={18} />}

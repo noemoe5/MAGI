@@ -1,0 +1,114 @@
+[
+  {
+    "term": "轻小说",
+    "alias": ["ライトノベル", "Light Novel", "轻文"],
+    "definition": "源自日本的一种小说类型，面向青少年读者，多配以动漫风格插画，篇幅较短、行文轻快，常按文库本形式分卷出版并改编为动画、漫画。",
+    "source": "内置词库",
+    "tags": ["文学体裁"]
+  },
+  {
+    "term": "文库本",
+    "alias": ["文庫本", "Bunko"],
+    "definition": "日本常见的小开本（A6 判）平装书形式，价格低廉、便于携带。轻小说、大众小说多以文库本分卷发行。",
+    "source": "内置词库",
+    "tags": ["出版", "日本"]
+  },
+  {
+    "term": "EPUB",
+    "alias": ["electronic publication", "epub3", ".epub"],
+    "definition": "由 IDPF 制定、现由 W3C 维护的开放电子书标准格式。本质是一个 zip 包，内含 XHTML 内容、OPF 元数据清单与导航文件，支持流式重排（reflowable），是当前最主流的电子书格式。",
+    "source": "内置词库",
+    "tags": ["格式", "电子书"]
+  },
+  {
+    "term": "OPF",
+    "alias": ["Open Packaging Format", "content.opf"],
+    "definition": "EPUB 包内的核心描述文件（通常名为 content.opf），用 XML 声明书名、作者、语言等元数据（dc: 元素），以及 manifest 资源清单与 spine 阅读顺序。",
+    "source": "内置词库",
+    "tags": ["格式", "电子书"]
+  },
+  {
+    "term": "CFI",
+    "alias": ["Canonical Fragment Identifier"],
+    "definition": "EPUB 中用于精确定位内容的规范片段标识符，可指向某个文档中的具体段落甚至字符位置。阅读器用它记录书签、高亮与阅读进度。",
+    "source": "内置词库",
+    "tags": ["格式", "电子书"]
+  },
+  {
+    "term": "重排",
+    "alias": ["reflowable", "流式排版"],
+    "definition": "电子书排版方式之一：文字随屏幕尺寸、字号、行距自动重新断行分页，而非固定版式。与之相对的是固定版式（fixed-layout，常见于画册、漫画）。",
+    "source": "内置词库",
+    "tags": ["排版"]
+  },
+  {
+    "term": "序章",
+    "alias": ["序幕", "Prologue", "プロローグ"],
+    "definition": "正文之前的引子段落，用于铺陈背景、制造悬念或交代前情，不一定包含标题。",
+    "source": "内置词库",
+    "tags": ["文学结构"]
+  },
+  {
+    "term": "伏笔",
+    "alias": ["Foreshadowing", "铺垫"],
+    "definition": "叙事技法：作者在前文埋下线索或暗示，于后文揭晓呼应，使情节转折显得合理且富有张力。",
+    "source": "内置词库",
+    "tags": ["文学手法"]
+  },
+  {
+    "term": "叙事视角",
+    "alias": ["POV", "Point of View", "人称"],
+    "definition": "故事被讲述的角度，分第一人称（我）、第二人称（你）、第三人称限知与全知等。视角决定读者能获得的信息边界，是小说结构的核心选择之一。",
+    "source": "内置词库",
+    "tags": ["文学手法"]
+  },
+  {
+    "term": "设定集",
+    "alias": ["世界观设定", "Setting"],
+    "definition": "对作品世界观、地理、势力、规则体系的系统整理。轻小说与奇幻作品常借由设定集补充本体未展开的内容，也是读者查阅名词的重要来源。",
+    "source": "内置词库",
+    "tags": ["创作"]
+  },
+  {
+    "term": "GPT-SoVITS",
+    "alias": ["SoVITS", "GPT SoVITS"],
+    "definition": "开源的少样本语音合成（TTS）项目，用少量参考音频即可克隆音色，支持中英日等多语言。本阅读器接入其 /tts 接口实现本地 AI 朗读。",
+    "source": "内置词库",
+    "tags": ["AI", "语音"]
+  },
+  {
+    "term": "TTS",
+    "alias": ["Text to Speech", "语音合成", "朗读"],
+    "definition": "把文本转换为语音的技术。本地部署的 TTS（如 GPT-SoVITS）无需联网、隐私可控，适合长篇小说的整章朗读。",
+    "source": "内置词库",
+    "tags": ["AI", "语音"]
+  },
+  {
+    "term": "参考文献",
+    "alias": ["Reference", "引用", "文献"],
+    "definition": "论著中引用或参考过的资料清单，通常按作者姓氏或出现顺序排列。常见著录格式有 GB/T 7714（中国国家标准）、APA、MLA、Chicago 等。",
+    "source": "内置词库",
+    "tags": ["学术"]
+  },
+  {
+    "term": "DOI",
+    "alias": ["Digital Object Identifier"],
+    "definition": "数字对象唯一标识符，形如 10.1000/xyz，为学术文献提供永久且可解析的链接，即使出版方网址变更也能定位到原文。",
+    "source": "内置词库",
+    "tags": ["学术"]
+  },
+  {
+    "term": "摘要",
+    "alias": ["Abstract", "概要"],
+    "definition": "学术论文开头对研究目的、方法、结果与结论的浓缩陈述，通常 200–300 字，用于让读者快速判断文献相关性。",
+    "source": "内置词库",
+    "tags": ["学术"]
+  },
+  {
+    "term": "关键词",
+    "alias": ["Keywords", "主题词"],
+    "definition": "作者或期刊为文献标引的 3–8 个主题词，用于检索与归类。跨库检索时优先使用主题词而非自然语言，可显著提高查全率与查准率。",
+    "source": "内置词库",
+    "tags": ["学术", "检索"]
+  }
+]

@@ -3,11 +3,14 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useStore } from './store/useStore'
 import { applyTheme } from './theme/themes'
 import { loadLibrary } from './lib/persistence'
+import { BUILTIN_KNOWLEDGE } from './lib/lookup'
 import { Book } from './types'
 import TitleBar from './components/TitleBar'
 import Home from './components/Home'
 import Reader from './components/Reader'
 import SettingsDrawer from './components/SettingsDrawer'
+import ResearchPanel from './components/ResearchPanel'
+import LiteratureDrawer from './components/LiteratureDrawer'
 
 export default function App() {
   const settings = useStore((s) => s.settings)
@@ -16,11 +19,16 @@ export default function App() {
   const setCurrent = useStore((s) => s.setCurrent)
   const books = useStore((s) => s.books)
   const settingsOpen = useStore((s) => s.settingsOpen)
+  const lookupOpen = useStore((s) => s.lookupOpen)
+  const literatureOpen = useStore((s) => s.literatureOpen)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
     loadLibrary().then((data) => {
       init(data)
+      // 首次启动（或词库被清空）时预置内置词条，保证断网也有查阅能力
+      const s = useStore.getState()
+      if (!s.knowledge.length) s.importKnowledge(BUILTIN_KNOWLEDGE)
       setReady(true)
     })
   }, [init])
@@ -64,6 +72,15 @@ export default function App() {
       {/* 设置抽屉挂在应用层：书库页与阅读页都能打开 */}
       <AnimatePresence>
         {settingsOpen && <SettingsDrawer />}
+      </AnimatePresence>
+
+      {/* 查阅中心（划词查 / 收藏 / 本地词库）与学术文献库：同样挂在应用层，
+          书库页与阅读页都能呼出，数据由 zustand 共享 */}
+      <AnimatePresence>
+        {lookupOpen && <ResearchPanel />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {literatureOpen && <LiteratureDrawer />}
       </AnimatePresence>
     </div>
   )

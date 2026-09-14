@@ -1,5 +1,5 @@
 import { Book } from '../types'
-import { shrinkToDataUrl, base64ToText, uuid } from './util'
+import { base64ToText, uuid } from './util'
 
 /** 封面等比缩到 maxW 宽再转 jpeg dataURL，避免整本原图 base64 塞进 library.json */
 async function shrinkToDataUrlSafe(blob: Blob, maxW: number): Promise<string> {

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
 const http = require('http')
 const path = require('path')
 const fs = require('fs')
@@ -201,6 +201,67 @@ ipcMain.handle('write-library', (e, data) => {
 })
 
 ipcMain.handle('get-path', () => app.getPath('userData'))
+
+// —— 文献查阅：联网代理 ——
+// 渲染进程受 CSP/CORS 限制，统一由主进程发起 http 请求并回传文本。
+// 只允许 http(s)、设 8s 超时（被墙的源不再让用户干等十几秒）、截断超长响应。
+ipcMain.handle('lookup-fetch', async (e, url) => {
+  if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { error: 'invalid url' }
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 8000)
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      redirect: 'follow',
+      headers: {
+        // Wikipedia 等开放 API 要求带可识别 UA，否则会被限流
+        'User-Agent': 'NovelReader/1.0 (https://github.com/noemoe5/NovelReaderElectron)',
+        Accept: 'application/json,text/html;q=0.9,*/*;q=0.8'
+      }
+    })
+    const text = await res.text()
+    return { ok: res.ok, status: res.status, text: text.slice(0, 300000) }
+  } catch (err) {
+    return { error: String(err) }
+  } finally {
+    clearTimeout(timer)
+  }
+})
+
+// 用系统默认浏览器打开链接（查阅结果里的参考链接）
+ipcMain.handle('open-external', async (e, url) => {
+  if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false
+  try { await shell.openExternal(url); return true } catch { return false }
+})
+
+// 选一个 JSON 文件并读取（导入本地知识库 / 文献库）
+ipcMain.handle('open-json', async () => {
+  const res = await dialog.showOpenDialog(null, {
+    properties: ['openFile'],
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  })
+  if (res.canceled || !res.filePaths[0]) return null
+  try {
+    return { path: res.filePaths[0], text: fs.readFileSync(res.filePaths[0], 'utf-8') }
+  } catch (err) {
+    return { error: String(err) }
+  }
+})
+
+// 另存为 JSON（导出本地知识库 / 文献库）
+ipcMain.handle('save-json', async (e, defaultName, content) => {
+  const res = await dialog.showSaveDialog(null, {
+    defaultPath: defaultName || 'export.json',
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  })
+  if (res.canceled || !res.filePath) return false
+  try {
+    fs.writeFileSync(res.filePath, content)
+    return true
+  } catch (err) {
+    return { error: String(err) }
+  }
+})
 
 ipcMain.on('win-min', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.minimize() })
 ipcMain.on('win-max', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) (w.isMaximized() ? w.unmaximize() : w.maximize()) })

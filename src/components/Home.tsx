@@ -5,10 +5,10 @@ import { useStore } from '../store/useStore'
 import { tr } from '../i18n'
 import { BookCard, BookRow } from './BookCard'
 import { importBook } from '../lib/import'
-import { IconHome, IconGrid, IconList, IconSearch, IconPlus, IconSettings } from './icons'
+import { IconHome, IconGrid, IconList, IconSearch, IconPlus, IconSettings, IconBook, IconTag } from './icons'
 
 export default function Home({ onOpen }: { onOpen: (b: Book) => void }) {
-  const { books, settings, setSettingsOpen, patchSettings, addBooks } = useStore()
+  const { books, settings, setSettingsOpen, patchSettings, addBooks, setLookupOpen, setLiteratureOpen } = useStore()
   const lang = settings.lang
   const [busy, setBusy] = useState(false)
 

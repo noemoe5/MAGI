@@ -32,3 +32,15 @@ export const IconToc = svg(<><line x1='3' y1='6' x2='21' y2='6' /><line x1='3' y
 export const IconMin = svg(<line x1='5' y1='12' x2='19' y2='12' />)
 export const IconMax = svg(<rect x='5' y='5' width='14' height='14' rx='1' />)
 export const IconSquare = svg(<rect x='6' y='6' width='12' height='12' rx='1' fill='currentColor' stroke='none' />)
+
+// —— 文献查阅模块 ——
+export const IconBook = svg(<><path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20' /><path d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z' /></>)
+export const IconGlobe = svg(<><circle cx='12' cy='12' r='9' /><line x1='3' y1='12' x2='21' y2='12' /><path d='M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z' /></>)
+export const IconTranslate = svg(<><path d='M4 5h10' /><path d='M9 3v2c0 5-2.5 8-5 9' /><path d='M6.5 8.5c1 2.5 3 4.5 5.5 5.5' /><path d='M13 21l4-10 4 10' /><line x1='14.5' y1='17.5' x2='19.5' y2='17.5' /></>)
+export const IconCopy = svg(<><rect x='9' y='9' width='12' height='12' rx='2' /><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' /></>)
+export const IconExternal = svg(<><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' /><polyline points='15 3 21 3 21 9' /><line x1='10' y1='14' x2='21' y2='3' /></>)
+export const IconSave = svg(<><path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z' /><polyline points='17 21 17 13 7 13 7 21' /><polyline points='7 3 7 8 15 8' /></>)
+export const IconUpload = svg(<><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' /><polyline points='17 8 12 3 7 8' /><line x1='12' y1='3' x2='12' y2='15' /></>)
+export const IconTag = svg(<><path d='M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9z' /><line x1='7.5' y1='7.5' x2='7.51' y2='7.5' /></>)
+export const IconNote = svg(<><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' /><polyline points='14 2 14 8 20 8' /><line x1='8' y1='13' x2='16' y2='13' /><line x1='8' y1='17' x2='13' y2='17' /></>)
+export const IconChevron = svg(<polyline points='9 18 15 12 9 6' />)

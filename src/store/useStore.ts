@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Book, Bookmark, Highlight, Settings, ThemeName, AppLang, LibraryData } from '../types'
+import { Book, Bookmark, Highlight, Settings, ThemeName, AppLang, LibraryData, Note, Literature, KnowledgeEntry } from '../types'
 import { DEFAULT_SETTINGS } from '../theme/themes'
 import { saveLibrary } from '../lib/persistence'
 
@@ -12,6 +12,14 @@ interface StoreState {
   tocOpen: boolean
   settingsOpen: boolean
   bookmarksOpen: boolean
+
+  // —— 文献查阅模块 ——
+  notes: Note[]              // 收藏的查阅结果
+  literature: Literature[]   // 学术文献库
+  knowledge: KnowledgeEntry[] // 本地知识库（内置 + 导入）
+  lookupOpen: boolean        // 查阅面板是否打开
+  lookupSeed: string         // 划词选区文本 / 预填查询
+  literatureOpen: boolean    // 学术文献库抽屉是否打开
 
   initialized: boolean
   init: (data: LibraryData | null) => void
@@ -27,6 +35,20 @@ interface StoreState {
   addHighlight: (h: Highlight) => void
   removeHighlight: (id: string) => void
 
+  // 文献查阅 actions
+  addNote: (n: Note) => void
+  removeNote: (id: string) => void
+  clearNotes: () => void
+  addLiterature: (l: Literature) => void
+  removeLiterature: (id: string) => void
+  updateLiterature: (id: string, patch: Partial<Literature>) => void
+  importKnowledge: (entries: KnowledgeEntry[]) => void
+  addKnowledge: (e: KnowledgeEntry) => void
+  clearKnowledge: () => void
+  setLookupOpen: (v: boolean) => void
+  setLookupSeed: (s: string) => void
+  setLiteratureOpen: (v: boolean) => void
+
   setTheme: (t: ThemeName) => void
   setAccent: (a: string) => void
   setLang: (l: AppLang) => void
@@ -38,7 +60,10 @@ interface StoreState {
 }
 
 function snapshot(s: StoreState): LibraryData {
-  return { books: s.books, bookmarks: s.bookmarks, highlights: s.highlights, settings: s.settings }
+  return {
+    books: s.books, bookmarks: s.bookmarks, highlights: s.highlights, settings: s.settings,
+    notes: s.notes, literature: s.literature, knowledge: s.knowledge
+  }
 }
 
 export const useStore = create<StoreState>((set, get) => {
@@ -56,6 +81,12 @@ export const useStore = create<StoreState>((set, get) => {
     tocOpen: false,
     settingsOpen: false,
     bookmarksOpen: false,
+    notes: [],
+    literature: [],
+    knowledge: [],
+    lookupOpen: false,
+    lookupSeed: '',
+    literatureOpen: false,
     initialized: false,
 
     init: (data) =>
@@ -64,6 +95,9 @@ export const useStore = create<StoreState>((set, get) => {
         bookmarks: data?.bookmarks ?? [],
         highlights: data?.highlights ?? [],
         settings: { ...DEFAULT_SETTINGS, ...(data?.settings ?? {}) },
+        notes: data?.notes ?? [],
+        literature: data?.literature ?? [],
+        knowledge: data?.knowledge ?? [],
         initialized: true
       }),
 
@@ -80,6 +114,8 @@ export const useStore = create<StoreState>((set, get) => {
         books: s.books.filter((b) => b.id !== id),
         bookmarks: s.bookmarks.filter((bm) => bm.bookId !== id),
         highlights: s.highlights.filter((h) => h.bookId !== id),
+        notes: s.notes.filter((n) => n.bookId !== id),
+        literature: s.literature.map((l) => (l.bookId === id ? { ...l, bookId: undefined } : l)),
         currentBookId: s.currentBookId === id ? null : s.currentBookId
       }))
       persist()
@@ -125,6 +161,51 @@ export const useStore = create<StoreState>((set, get) => {
       set((s) => ({ highlights: s.highlights.filter((h) => h.id !== id) }))
       persist()
     },
+
+    // —— 文献查阅 ——
+    addNote: (n) => {
+      set((s) => ({ notes: [n, ...s.notes] }))
+      persist()
+    },
+    removeNote: (id) => {
+      set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }))
+      persist()
+    },
+    clearNotes: () => {
+      set({ notes: [] })
+      persist()
+    },
+    addLiterature: (l) => {
+      set((s) => ({ literature: [l, ...s.literature] }))
+      persist()
+    },
+    removeLiterature: (id) => {
+      set((s) => ({ literature: s.literature.filter((l) => l.id !== id) }))
+      persist()
+    },
+    updateLiterature: (id, patch) => {
+      set((s) => ({ literature: s.literature.map((l) => (l.id === id ? { ...l, ...patch } : l)) }))
+      persist()
+    },
+    importKnowledge: (entries) => {
+      set((s) => {
+        const seen = new Set(s.knowledge.map((k) => k.term.toLowerCase()))
+        const fresh = entries.filter((e) => e.term && !seen.has(e.term.toLowerCase()))
+        return { knowledge: [...fresh, ...s.knowledge] }
+      })
+      persist()
+    },
+    addKnowledge: (e) => {
+      set((s) => ({ knowledge: [e, ...s.knowledge] }))
+      persist()
+    },
+    clearKnowledge: () => {
+      set({ knowledge: [] })
+      persist()
+    },
+    setLookupOpen: (v) => set({ lookupOpen: v }),
+    setLookupSeed: (s) => set({ lookupSeed: s }),
+    setLiteratureOpen: (v) => set({ literatureOpen: v }),
 
     setTheme: (t) => {
       set((s) => ({ settings: { ...s.settings, theme: t } }))
