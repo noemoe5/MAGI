@@ -1,6 +1,6 @@
 {
   "name": "novel-reader",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Koodo-style novel reader with built-in research center (Electron + React + EPUB.js)",
   "main": "electron/main.cjs",
   "author": "noemoe5",

@@ -5,7 +5,7 @@ import { useStore } from '../store/useStore'
 import { tr } from '../i18n'
 import { BookCard, BookRow } from './BookCard'
 import { importBook } from '../lib/import'
-import { IconHome, IconGrid, IconList, IconSearch, IconPlus, IconSettings, IconBook, IconTag } from './icons'
+import { IconHome, IconGrid, IconList, IconSearch, IconPlus, IconSettings, IconBook, IconTag, IconChevron } from './icons'
 
 export default function Home({ onOpen }: { onOpen: (b: Book) => void }) {
   const { books, settings, setSettingsOpen, patchSettings, addBooks, setLookupOpen, setLiteratureOpen } = useStore()
@@ -74,6 +74,27 @@ export default function Home({ onOpen }: { onOpen: (b: Book) => void }) {
           {busy ? <span className='spin' /> : <><IconPlus size={15} /> {tr(lang, 'addBooks')}</>}
         </button>
         <button className='icon-btn' title={tr(lang, 'settings')} onClick={() => setSettingsOpen(true)}><IconSettings size={18} /></button>
+      </div>
+
+      {/* 快捷入口：查阅中心 / 学术文献库。常驻可见，不随书库滚动，
+          解决「功能存在但入口在阅读器悬浮栏里、平时看不到」的问题 */}
+      <div className='entry-strip'>
+        <button className='entry-card accent' title={tr(lang, 'research')} onClick={() => setLookupOpen(true)}>
+          <span className='entry-ico'><IconBook size={17} /></span>
+          <span className='entry-txt'>
+            <b>{tr(lang, 'research')}</b>
+            <em>{tr(lang, 'researchSub')}</em>
+          </span>
+          <IconChevron size={15} className='chev' />
+        </button>
+        <button className='entry-card' title={tr(lang, 'literature')} onClick={() => setLiteratureOpen(true)}>
+          <span className='entry-ico'><IconTag size={17} /></span>
+          <span className='entry-txt'>
+            <b>{tr(lang, 'literature')}</b>
+            <em>{tr(lang, 'literatureSub')}</em>
+          </span>
+          <IconChevron size={15} className='chev' />
+        </button>
       </div>
 
       <div className='home'>
