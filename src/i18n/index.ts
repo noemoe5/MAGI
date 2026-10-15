@@ -3,7 +3,7 @@ import { AppLang } from '../types'
 type Dict = Record<string, string>
 
 const zh: Dict = {
-  appName: 'NovelReader',
+  appName: 'MAGI',
   library: '书库',
   all: '全部',
   reading: '在读',
@@ -183,7 +183,7 @@ const zh: Dict = {
 }
 
 const en: Dict = {
-  appName: 'NovelReader',
+  appName: 'MAGI',
   library: 'Library',
   all: 'All',
   reading: 'Reading',

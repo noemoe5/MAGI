@@ -1,6 +1,8 @@
-# NovelReader
+# MAGI
 
-影音综合体：本地小说阅读器 + 音乐播放器 + 视频播放器，基于 Electron 构建。克隆 Koodo Reader 的阅读交互，音频播放形态参考 [folia](https://github.com/chthollyphile/folia-major)，视频播放形态参考 Vivid Player。支持 EPUB / TXT 阅读、双模式阅读、GPT-SoVITS 语音朗读。
+本地影音综合体：小说阅读器 + 音乐播放器 + 视频播放器，基于 Electron 构建。阅读交互克隆 Koodo Reader，音频播放形态参考 [folia](https://github.com/chthollyphile/folia-major)，视频播放形态参考 Vivid Player。支持 EPUB / TXT 阅读、双模式阅读、GPT-SoVITS 语音朗读。
+
+> 名字取自 EVA 里 NERV 的三贤机——书、乐、影三个分区，一个中枢。
 
 ## ✨ 功能特性
 
@@ -88,18 +90,23 @@
 | 渲染 | EPUB.js 0.3.93 |
 | 动画 | framer-motion 11 |
 | 状态 | zustand 5 |
+| 元数据 | music-metadata 12 |
 
 ## 📂 目录结构
 
 ```
-NovelReaderElectron/
-├── electron/main.cjs      # Electron 主进程（无边框窗口、IPC、大文件流式解压 + 本地 HTTP 目录服务、联网代理）
+MAGI/
+├── electron/main.cjs      # Electron 主进程（无边框窗口、IPC、大文件流式解压 + 本地 HTTP 目录/媒体服务、联网代理）
 ├── src/
-│   ├── App.tsx            # 应用入口、主题与转场
-│   ├── components/        # Home / Reader / 设置 / 目录 / 书签 / 查阅面板 / 文献库 等
-│   ├── store/useStore.ts  # 全局状态（书架、设置、进度、笔记、文献、词库）
+│   ├── App.tsx            # 应用入口、分区导航、主题与转场
+│   ├── components/        # Home / Reader / 设置 / 目录 / 书签 / 查阅面板 / 文献库 / 音乐库 / 视频库 / 播放条 / 播放台 / 视频播放器 等
+│   ├── store/useStore.ts  # 全局状态（书架、设置、进度、笔记、文献、词库、音频、视频）
 │   ├── lib/tts.ts         # GPT-SoVITS TTS 客户端
 │   ├── lib/lookup.ts      # 查阅引擎（本地匹配 + 多源联网 + 引用著录）
+│   ├── lib/lrc.ts         # LRC 歌词解析（标准 + 增强逐字）
+│   ├── lib/subtitle.ts    # SRT / VTT / ASS 字幕解析
+│   ├── lib/visualizer.ts  # Web Audio 频谱可视化
+│   ├── lib/mediaImport.ts # 媒体导入（文件 / 递归扫描 + 元数据探测）
 │   ├── data/knowledge.json# 内置离线词库
 │   ├── theme/themes.ts    # 主题与默认设置
 │   └── i18n/              # 中英文案
@@ -153,7 +160,7 @@ npm run pack   # 仅产出解压目录 win-unpacked
 
 ## 📥 下载
 
-Windows 安装版（NSIS）与免安装单文件（portable）见 [Releases](https://github.com/noemoe5/NovelReaderElectron/releases)。
+Windows 安装版（NSIS）与免安装单文件（portable）见 [Releases](https://github.com/noemoe5/MAGI/releases)。
 
 ## 📌 说明
 

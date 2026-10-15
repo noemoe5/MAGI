@@ -4,7 +4,7 @@ export default function TitleBar() {
   const api = (window as any).electronAPI
   return (
     <div className='titlebar'>
-      <span className='title'>NovelReader</span>
+      <span className='title'>MAGI</span>
       <span className='spacer' />
       {api && (
         <>

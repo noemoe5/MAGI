@@ -1,7 +1,7 @@
 {
-  "name": "novel-reader",
+  "name": "magi",
   "version": "2.0.0",
-  "description": "Media hub: novel reader + music player (Folia-style) + video player (Vivid-style) (Electron + React + EPUB.js)",
+  "description": "MAGI - local media hub: novel reader + music player (Folia-style) + video player (Vivid-style), built on Electron + React",
   "main": "electron/main.cjs",
   "author": "noemoe5",
   "scripts": {
@@ -33,8 +33,8 @@
     "wait-on": "^8.0.1"
   },
   "build": {
-    "appId": "com.noemoe5.novelreader",
-    "productName": "NovelReader",
+    "appId": "com.noemoe5.magi",
+    "productName": "MAGI",
     "files": [
       "dist/**/*",
       "electron/**/*",
@@ -53,10 +53,10 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "NovelReader"
+      "shortcutName": "MAGI"
     },
     "portable": {
-      "artifactName": "NovelReader-portable-${version}.exe"
+      "artifactName": "MAGI-portable-${version}.exe"
     }
   }
 }

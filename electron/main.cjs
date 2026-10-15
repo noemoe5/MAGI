@@ -315,7 +315,7 @@ ipcMain.handle('lookup-fetch', async (e, url) => {
       redirect: 'follow',
       headers: {
         // Wikipedia 等开放 API 要求带可识别 UA，否则会被限流
-        'User-Agent': 'NovelReader/1.0 (https://github.com/noemoe5/NovelReaderElectron)',
+        'User-Agent': 'MAGI/2.0 (https://github.com/noemoe5/MAGI)',
         Accept: 'application/json,text/html;q=0.9,*/*;q=0.8'
       }
     })
