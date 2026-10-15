@@ -7,16 +7,33 @@ import { TtsConfig } from '../types'
 // 两者都是 JSON body（FastAPI 用 pydantic model / request.json()），用 query string 会 422。
 // 返回音频 objectURL（wav），供 <audio> 播放。
 
+/**
+ * 清洗用户从资源管理器「复制为路径」粘进来的引用：
+ *   "D:\gpt-sound\a.wav"   → D:\gpt-sound\a.wav
+ * 前后空白、成对的双/单引号都去掉。
+ * 服务端（api_v2.py）不做任何 strip，带引号的路径会让 torchaudio.load
+ * 直接抛 LibsndfileError，最终表现为 POST /tts 400（实测 0.05s 秒失败）。
+ */
+export function sanitizeRefPath(raw: string): string {
+  let p = (raw || '').trim()
+  while (p.length >= 2 && ((p[0] === '"' && p.endsWith('"')) || (p[0] === "'" && p.endsWith("'")))) {
+    p = p.slice(1, -1).trim()
+  }
+  return p
+}
+
 /** 前置校验：必填字段为空时直接抛出明确错误，避免无意义的 400 请求 */
 function validateTtsPayload(text: string, cfg: TtsConfig): void {
   if (!text.trim()) throw new Error('TTS: 待朗读文本为空')
   if (!cfg.baseUrl?.trim()) throw new Error('TTS: 未配置服务地址 (baseUrl)')
   if (cfg.apiVersion === 'v2') {
     if (!cfg.refAudioPath?.trim()) throw new Error('TTS: 未配置参考音频路径 (refAudioPath)，请在设置中填写参考音频文件的完整路径')
+    if (!sanitizeRefPath(cfg.refAudioPath)) throw new Error('TTS: 参考音频路径无效 (refAudioPath)')
     if (!cfg.textLang?.trim()) throw new Error('TTS: 未配置文本语言 (textLang)')
     if (!cfg.promptLang?.trim()) throw new Error('TTS: 未配置提示词语言 (promptLang)')
   } else {
     if (!cfg.refAudioPath?.trim()) throw new Error('TTS: 未配置参考音频路径 (refer_wav_path)')
+    if (!sanitizeRefPath(cfg.refAudioPath)) throw new Error('TTS: 参考音频路径无效 (refer_wav_path)')
     if (!cfg.textLang?.trim()) throw new Error('TTS: 未配置文本语言 (text_language)')
     if (!cfg.promptLang?.trim()) throw new Error('TTS: 未配置提示词语言 (prompt_language)')
   }
@@ -26,7 +43,8 @@ export async function speak(text: string, cfg: TtsConfig): Promise<string> {
   // 前置校验——把"必填为空"这类用户侧配置问题提前拦截，附带中文指引
   validateTtsPayload(text, cfg)
 
-  const base = cfg.baseUrl.replace(/\/+$/, '')
+  const base = cfg.baseUrl.trim().replace(/\/+$/, '')
+  const refPath = sanitizeRefPath(cfg.refAudioPath)
 
   const url = cfg.apiVersion === 'v2' ? `${base}/tts` : `${base}/`
   const payload: Record<string, unknown> =
@@ -34,7 +52,7 @@ export async function speak(text: string, cfg: TtsConfig): Promise<string> {
       ? {
           text,
           text_lang: cfg.textLang,
-          ref_audio_path: cfg.refAudioPath,
+          ref_audio_path: refPath,
           prompt_lang: cfg.promptLang,
           prompt_text: cfg.promptText || '',
           text_split_method: 'cut5',
@@ -47,7 +65,7 @@ export async function speak(text: string, cfg: TtsConfig): Promise<string> {
       : {
           text,
           text_language: cfg.textLang,
-          refer_wav_path: cfg.refAudioPath,
+          refer_wav_path: refPath,
           prompt_language: cfg.promptLang,
           prompt_text: cfg.promptText || '',
           cut_punc: '，。！？',

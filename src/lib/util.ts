@@ -27,6 +27,30 @@ export function blobToDataURL(blob: Blob): Promise<string> {
   })
 }
 
+/** UTF-8 路径 → base64url（主进程媒体服务器用；+ / = 换成 URL 安全字符） */
+export function encodeMediaPath(p: string): string {
+  return btoa(unescape(encodeURIComponent(p)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
+/** 本地媒体路径 → http URL（经主进程媒体服务器；未就绪时返回空串） */
+export function mediaUrl(p: string): string {
+  const base = (window as any).electronAPI?.mediaBaseUrl?.() || ''
+  return base ? base + encodeMediaPath(p) : ''
+}
+
+/** 秒 → mm:ss / h:mm:ss */
+export function fmtTime(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) sec = 0
+  const s = Math.floor(sec % 60)
+  const m = Math.floor((sec / 60) % 60)
+  const h = Math.floor(sec / 3600)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+}
+
 // 渐变占位封面（无封面时按标题生成，避免空白卡片）
 export function placeholderCover(title: string): string {
   const colors = ['#0179ca', '#008F91', '#6867D1', '#F97316', '#EC4999', '#8B5CF6', '#0EA5E9', '#14b8a6']

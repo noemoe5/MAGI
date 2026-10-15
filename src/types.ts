@@ -105,4 +105,62 @@ export interface LibraryData {
   notes?: Note[]
   literature?: Literature[]
   knowledge?: KnowledgeEntry[]
+  audioTracks?: AudioTrack[]
+  videoItems?: VideoItem[]
+  audioPositions?: Record<string, AudioPosition>
+  videoProgress?: Record<string, VideoProgress>
+  audioPrefs?: AudioPrefs
 }
+
+// —— 影音媒体 ——
+
+export interface AudioTrack {
+  id: string
+  path: string
+  name: string            // 显示名（ID3 标题优先，否则文件名）
+  artist?: string
+  album?: string
+  albumartist?: string
+  year?: string
+  genre?: string
+  track?: number | null
+  duration: number        // 秒
+  lossless?: boolean
+  sampleRate?: number
+  bitsPerSample?: number
+  channels?: number
+  container?: string
+  codec?: string
+  cover?: string          // dataURL（缩图）
+  addedAt: number
+}
+
+export interface VideoItem {
+  id: string
+  path: string
+  name: string
+  duration: number
+  width?: number
+  height?: number
+  size?: number
+  addedAt: number
+}
+
+export interface AudioPosition { pos: number; dur: number; at: number }
+export interface VideoProgress { position: number; duration: number; updatedAt: number }
+
+export type PlayMode = 'order' | 'shuffle' | 'single'
+
+/** 持久化的音频偏好（队列/音量/模式跨会话保留） */
+export interface AudioPrefs {
+  mode: PlayMode
+  volume: number
+  muted: boolean
+  rate: number
+  lyricOffsetMs: number
+  lastCurrentId?: string | null
+  lastQueue?: string[]
+  lastIndex?: number
+}
+
+export type MediaSection = 'books' | 'music' | 'video'
