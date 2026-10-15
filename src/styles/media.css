@@ -287,3 +287,17 @@
 .vp-menu label { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 10px; opacity: .9; }
 .vp-menu label input { flex: 1; accent-color: var(--accent); }
 .vp-pl-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============================================================================
+   视频覆盖窗口（#vp-overlay）
+   mpv 把视频像素画在独立的原生窗口里（在网页内容之上），所以这个窗口的文档和播放器根
+   必须全透明 —— 只留下控件，中间那层黑底要留给 mpv。
+   ============================================================================ */
+html.vp-overlay,
+html.vp-overlay body {
+  background: transparent !important;
+  overflow: hidden;
+}
+html.vp-overlay #root { background: transparent; height: 100%; }
+
+.vp-root.vp-root-transparent { background: transparent; }

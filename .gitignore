@@ -13,6 +13,10 @@ out_nsis_*/
 out_port_*/
 out_port2_*/
 
+# 随包分发的便携 mpv（mpv.exe 约 115 MB，超 GitHub 单文件 100 MB 上限，不入库）
+# 自建时按 README 的「打包」一节下载解压到 resources/mpv/ 即可
+resources/mpv/
+
 # diagnostics / temp helper scripts
 list_broken.cjs
 scan_broken.cjs

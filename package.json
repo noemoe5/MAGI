@@ -1,7 +1,7 @@
 {
   "name": "magi",
-  "version": "2.0.0",
-  "description": "MAGI - local media hub: novel reader + music player (Folia-style) + video player (Vivid-style), built on Electron + React",
+  "version": "2.1.0",
+  "description": "MAGI - local media hub: novel reader + music player (folia 一比一) + video player (embedded mpv, real HDR), built on Electron + React",
   "main": "electron/main.cjs",
   "author": "noemoe5",
   "scripts": {
@@ -12,17 +12,44 @@
     "dist": "npm run build && electron-builder"
   },
   "dependencies": {
+    "@applemusic-like-lyrics/ttml": "^1.0.1",
+    "@chenglou/pretext": "^0.0.9",
+    "@paper-design/shaders-react": "^0.0.80",
+    "@react-three/fiber": "^9.8.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/blueimp-md5": "^2.18.2",
+    "@xmldom/xmldom": "^0.9.12",
+    "autoprefixer": "^10.6.1",
+    "blueimp-md5": "^2.19.0",
+    "budoux": "^0.9.3",
+    "dexie": "^4.4.6",
     "epubjs": "^0.3.93",
-    "framer-motion": "^11.11.1",
+    "fflate": "^0.8.3",
+    "framer-motion": "^13.5.1",
+    "i18next": "^26.4.5",
+    "i18next-browser-languagedetector": "^8.2.1",
+    "lucide-react": "^1.48.0",
     "music-metadata": "^12.2.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "opencc-js": "^1.4.2",
+    "pinyin-pro": "^3.29.3",
+    "pixi.js": "^8.22.0",
+    "postcss": "^8.5.30",
+    "react": "^19.3.1",
+    "react-colorful": "^5.8.1",
+    "react-dom": "^19.3.1",
+    "react-i18next": "^17.0.16",
+    "react-window": "^2.3.4",
+    "tailwindcss": "^4.3.3",
+    "three": "^0.185.1",
+    "twgl.js": "^7.0.0",
     "unzipper": "^0.12.5",
+    "wanakana": "^5.3.1",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^4.3.2",
     "concurrently": "^9.0.1",
     "cross-env": "^7.0.3",
@@ -39,6 +66,15 @@
       "dist/**/*",
       "electron/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/mpv",
+        "to": "mpv",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "directories": {
       "output": "../nr_out"

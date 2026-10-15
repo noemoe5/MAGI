@@ -29,6 +29,46 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mediaSidecar: (p) => ipcRenderer.invoke('media-sidecar', p),
   mediaReadText: (p) => ipcRenderer.invoke('media-read-text', p),
 
+  // —— 视频引擎（mpv 嵌入）——
+  // 视频像素画在独立的视频窗口里，控制 UI 在透明覆盖窗口中；两侧都通过这些方法通信。
+  mpv: {
+    available: () => ipcRenderer.invoke('video-mpv-available'),
+    open: (payload) => ipcRenderer.invoke('video-mpv-open', payload),
+    command: (type, value) => ipcRenderer.invoke('video-mpv-command', { type, value }),
+    close: () => ipcRenderer.invoke('video-mpv-close'),
+    fullscreen: (on) => ipcRenderer.invoke('video-mpv-fullscreen', on),
+    screenshot: (name) => ipcRenderer.invoke('video-mpv-screenshot', name),
+    onInit: (fn) => {
+      const h = (_e, payload) => fn(payload)
+      ipcRenderer.on('mpv:init', h)
+      return () => ipcRenderer.removeListener('mpv:init', h)
+    },
+    onState: (fn) => {
+      const h = (_e, state) => fn(state)
+      ipcRenderer.on('mpv:state', h)
+      return () => ipcRenderer.removeListener('mpv:state', h)
+    },
+    onOpened: (fn) => {
+      const h = (_e, payload) => fn(payload)
+      ipcRenderer.on('mpv:opened', h)
+      return () => ipcRenderer.removeListener('mpv:opened', h)
+    },
+    onClosed: (fn) => {
+      const h = () => fn()
+      ipcRenderer.on('mpv:closed', h)
+      return () => ipcRenderer.removeListener('mpv:closed', h)
+    },
+    ready: () => ipcRenderer.send('video-mpv-overlay-ready')
+  },
+
+  // 覆盖窗口 ↔ 主窗口的语义化事件（队列逻辑在渲染层的 store 里，主进程只做转发）
+  videoUiEvent: (name, payload) => ipcRenderer.send('video-ui-event', { name, payload }),
+  onVideoUiEvent: (fn) => {
+    const h = (_e, evt) => fn(evt)
+    ipcRenderer.on('video-ui-event', h)
+    return () => ipcRenderer.removeListener('video-ui-event', h)
+  },
+
   winMin: () => ipcRenderer.send('win-min'),
   winMax: () => ipcRenderer.send('win-max'),
   winClose: () => ipcRenderer.send('win-close')

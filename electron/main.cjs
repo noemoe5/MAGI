@@ -195,8 +195,11 @@ function libPath() {
   return path.join(app.getPath('userData'), 'library.json')
 }
 
+// 主窗口引用提到模块级：视频层（mpv 视频窗口 + 透明覆盖窗口）要挂在它下面并跟随它的位置
+let mainWindow = null
+
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1180,
     height: 820,
     minWidth: 820,
@@ -219,6 +222,8 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
   })
+
+  attachVideoLayerToMainWindow()
 
   const isDev = process.env.NODE_ENV === 'development'
   if (isDev) {
@@ -504,3 +509,218 @@ ipcMain.handle('media-read-text', (e, p) => {
 ipcMain.on('win-min', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.minimize() })
 ipcMain.on('win-max', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) (w.isMaximized() ? w.unmaximize() : w.maximize()) })
 ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.close() })
+
+// ============================================================================
+// 视频播放层：mpv 嵌入
+//
+// 为什么不是 <video>：Chromium 在 Windows 上拿不到真正的 HDR 直通（色深/色彩空间会被
+// 合成器吃掉），也放不了杜比视界 / 部分 HEVC 硬解。所以视频像素交给 mpv（vo=gpu-next +
+// target-colorspace-hint），MAGI 只负责界面。
+//
+// 两个窗口，因为原生子窗口永远画在同一个 HWND 的网页内容**之上**，UI 压不住 mpv：
+//   videoWin   —— 无边框、不吃焦点；它的 HWND 交给 mpv 的 --wid，视频画在这里
+//   overlayWin —— 透明无边框、承载全部控制 UI（沿用原 Vivid 形态的 vp-* 样式）
+// 两者都 owner 挂在主窗口下，位置/尺寸始终跟主窗口一致，所以观感仍是「视频在 MAGI 里」。
+// ============================================================================
+const mpv = require('./mpv.cjs')
+
+const VIDEO_OVERLAY_HASH = 'vp-overlay'
+let videoWin = null
+let overlayWin = null
+let mpvOffState = null
+let videoSession = null // { id, path, name, duration }
+let overlayReady = false
+let syncGuard = false
+
+const videoAreaBounds = () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return null
+  const b = mainWindow.getBounds()
+  if (b.width < 2 || b.height < 2) return null
+  return b
+}
+
+function attachVideoLayerToMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const sync = () => {
+    if (syncGuard) return
+    const b = videoAreaBounds()
+    if (!b) return
+    syncGuard = true
+    try {
+      for (const w of [videoWin, overlayWin]) {
+        if (w && !w.isDestroyed() && !w.isFullScreen()) w.setBounds(b)
+      }
+    } finally { syncGuard = false }
+  }
+  mainWindow.on('move', sync)
+  mainWindow.on('resize', sync)
+  mainWindow.on('enter-full-screen', sync)
+  mainWindow.on('leave-full-screen', sync)
+  mainWindow.on('minimize', () => { videoWin?.hide(); overlayWin?.hide() })
+  mainWindow.on('restore', () => { videoWin?.showInactive(); overlayWin?.show() })
+  mainWindow.on('closed', () => { mainWindow = null; teardownVideoLayer() })
+}
+
+function loadOverlayPage() {
+  const isDev = process.env.NODE_ENV === 'development'
+  if (isDev) overlayWin.loadURL(`http://localhost:5173/#${VIDEO_OVERLAY_HASH}`)
+  else overlayWin.loadFile(path.join(__dirname, '../dist/index.html'), { hash: VIDEO_OVERLAY_HASH })
+}
+
+function createVideoWindows() {
+  const b = videoAreaBounds()
+  if (!b) return false
+
+  if (!videoWin || videoWin.isDestroyed()) {
+    videoWin = new BrowserWindow({
+      x: b.x, y: b.y, width: b.width, height: b.height,
+      parent: mainWindow || undefined,
+      frame: false, backgroundColor: '#000000', show: true,
+      // 不吃焦点 ⇒ 永远不可能被点到最前面去，透明覆盖层就稳在它上面
+      focusable: false, skipTaskbar: true, resizable: false,
+      minimizable: false, maximizable: false, movable: false, hasShadow: false,
+      webPreferences: { contextIsolation: true, nodeIntegration: false, backgroundThrottling: false }
+    })
+    videoWin.setMenuBarVisibility(false)
+    // 这个窗口只为提供一个 HWND 给 mpv 的 --wid，页面内容无关紧要；
+    // 但必须吞掉 rejection —— 未处理的 Promise rejection 会让主进程直接退出。
+    videoWin.loadURL('about:blank').catch(() => { /* 无所谓，mpv 会把它的 HWND 整块盖住 */ })
+    videoWin.on('closed', () => { videoWin = null })
+  } else {
+    videoWin.setBounds(b)
+  }
+
+  if (!overlayWin || overlayWin.isDestroyed()) {
+    overlayReady = false
+    overlayWin = new BrowserWindow({
+      x: b.x, y: b.y, width: b.width, height: b.height,
+      parent: mainWindow || undefined,
+      frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false,
+      skipTaskbar: true, resizable: false, minimizable: false, maximizable: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.cjs'),
+        contextIsolation: true, nodeIntegration: false,
+        backgroundThrottling: false
+      }
+    })
+    overlayWin.setMenuBarVisibility(false)
+    overlayWin.webContents.on('did-finish-load', () => {
+      overlayReady = true
+      pushVideoInit()
+    })
+    overlayWin.on('closed', () => { overlayWin = null; overlayReady = false })
+    // 拖动：覆盖层顶上有一条 app-region: drag，拖它等于拖整个应用窗口
+    overlayWin.on('move', () => {
+      if (syncGuard) return
+      const nb = overlayWin.getBounds()
+      syncGuard = true
+      try {
+        mainWindow?.setBounds(nb)
+        if (videoWin && !videoWin.isDestroyed() && !videoWin.isFullScreen()) videoWin.setBounds(nb)
+      } finally { syncGuard = false }
+    })
+    loadOverlayPage()
+  } else {
+    overlayWin.setBounds(b)
+  }
+
+  // z 序：覆盖层必须压住视频窗
+  videoWin.moveTop()
+  overlayWin.moveTop()
+  overlayWin.focus()
+  return true
+}
+
+function pushVideoInit() {
+  if (!overlayReady || !overlayWin || overlayWin.isDestroyed()) return
+  overlayWin.webContents.send('mpv:init', {
+    available: mpv.isMpvAvailable(),
+    session: videoSession,
+    state: mpv.getState()
+  })
+}
+
+async function teardownVideoLayer() {
+  if (mpvOffState) { mpvOffState(); mpvOffState = null }
+  await mpv.stop()
+  videoSession = null
+  for (const w of [overlayWin, videoWin]) {
+    if (w && !w.isDestroyed()) {
+      const victim = w
+      victim.removeAllListeners('closed')
+      victim.destroy()
+    }
+  }
+  overlayWin = null
+  videoWin = null
+  overlayReady = false
+}
+
+ipcMain.handle('video-mpv-available', () => ({ available: mpv.isMpvAvailable(), path: mpv.resolveMpvPath() }))
+
+// 打开一个视频：建窗 → 启 mpv（--wid 指向视频窗）→ 把初始状态推给覆盖层
+ipcMain.handle('video-mpv-open', async (_e, payload) => {
+  const { id, path: file, name, duration = 0, startAt = 0, subtitleFiles = [], volume = 80 } = payload || {}
+  if (!file) return { ok: false, error: 'no-file' }
+  if (!mpv.isMpvAvailable()) return { ok: false, error: 'mpv-not-found' }
+  if (!createVideoWindows()) return { ok: false, error: 'no-window' }
+
+  videoSession = { id, path: file, name: name || path.basename(file), duration, subs: subtitleFiles }
+  if (mpvOffState) { mpvOffState(); mpvOffState = null }
+  mpvOffState = mpv.onState((s) => {
+    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('mpv:state', s)
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('mpv:state', s)
+  })
+
+  const res = await mpv.start({ hostWindow: videoWin, file, startAt, subtitleFiles, volume })
+  pushVideoInit()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('mpv:opened', { ...videoSession, ok: res.ok, error: res.error || null })
+  }
+  return res
+})
+
+ipcMain.handle('video-mpv-command', async (_e, req) => {
+  if (!req || !req.type) return false
+  return mpv.command(req.type, req.value)
+})
+
+ipcMain.handle('video-mpv-close', async () => {
+  await teardownVideoLayer()
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('mpv:closed')
+  return true
+})
+
+ipcMain.handle('video-mpv-fullscreen', async (_e, on) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false
+  const target = typeof on === 'boolean' ? on : !mainWindow.isFullScreen()
+  mainWindow.setFullScreen(target)
+  for (const w of [videoWin, overlayWin]) {
+    if (w && !w.isDestroyed()) {
+      if (target) w.setFullScreen(true)
+      else { w.setFullScreen(false); w.setBounds(videoAreaBounds() || w.getBounds()) }
+    }
+  }
+  overlayWin?.focus()
+  return target
+})
+
+ipcMain.handle('video-mpv-screenshot', async (_e, name) => {
+  const dir = app.getPath('pictures') || app.getPath('downloads')
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+  const safe = String(name || 'frame').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)
+  const target = path.join(dir, `${safe}-${stamp}.png`)
+  const ok = await mpv.command('screenshot', target)
+  return ok ? target : null
+})
+
+// 覆盖窗口发来的语义事件（下一集 / 上一集 / 关闭 / 选集）→ 转给主窗口，由 store 处理
+ipcMain.on('video-ui-event', (e, evt) => {
+  const senderWin = BrowserWindow.fromWebContents(e.sender)
+  if (senderWin === mainWindow) return
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('video-ui-event', evt)
+})
+
+// 覆盖窗口加载完毕后，把它该知道的一次性信息推进去
+ipcMain.on('video-mpv-overlay-ready', () => pushVideoInit())
+

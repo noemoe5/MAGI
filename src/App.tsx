@@ -13,9 +13,8 @@ import ResearchPanel from './components/ResearchPanel'
 import LiteratureDrawer from './components/LiteratureDrawer'
 import MusicLibrary from './components/MusicLibrary'
 import VideoLibrary from './components/VideoLibrary'
-import AudioPlayerBar from './components/AudioPlayerBar'
-import NowPlaying from './components/NowPlaying'
-import VideoPlayer from './components/VideoPlayer'
+import FoliaMediaLayer from './media/FoliaMediaLayer'
+import MpvStage from './video/MpvStage'
 import { IconBook, IconMusic, IconFilm } from './components/icons'
 import { tr } from './i18n'
 
@@ -124,17 +123,14 @@ export default function App() {
         </main>
       </div>
 
-      {/* 全局音频播放条（Folia 形态：常驻底部） */}
+      {/* folia 播放界面层：底部播放条 + 全屏 Lattice 播放台（原样移植自 folia-major） */}
       <AnimatePresence>
-        {audioCurrentId && <AudioPlayerBar key='player-bar' />}
+        {audioCurrentId && <FoliaMediaLayer key='folia-layer' />}
       </AnimatePresence>
 
-      {/* 全屏播放台 / 视频播放器 */}
+      {/* 视频播放器：默认走 mpv（真 HDR / 全格式），没有 mpv 时自动退回 Vivid 形态的 <video> */}
       <AnimatePresence>
-        {nowPlayingOpen && <NowPlaying key='now-playing' />}
-      </AnimatePresence>
-      <AnimatePresence>
-        {videoPlayingId && <VideoPlayer key='video-player' />}
+        {videoPlayingId && <MpvStage key='video-player' />}
       </AnimatePresence>
 
       {/* 设置抽屉挂在应用层：书库页与阅读页都能打开 */}
