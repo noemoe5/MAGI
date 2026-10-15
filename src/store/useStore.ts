@@ -30,6 +30,12 @@ interface StoreState {
   audioPosition: number
   audioDuration: number
   nowPlayingOpen: boolean
+  /**
+   * 全屏播放层打开时显示哪一档 —— 对齐 folia 的 `currentView`：
+   *   `player`  播放页：可视化器全屏铺底（封面配色背景 + 它自带的歌词浮层）+ 侧栏（大封面/标签页）
+   *   `lattice` 歌曲墙：队列的海报墙
+   */
+  playView: 'player' | 'lattice'
   sleepTimerEnd: number | null
   audioSeekToken: number           // 显式 seek 请求计数（组件据此同步 element.currentTime）
 
@@ -90,7 +96,7 @@ interface StoreState {
   removeVideoItem: (id: string) => void
 
   /** 运行时补丁（不落盘）：播放态/位置/覆盖层 */
-  patchAudio: (p: Partial<Pick<StoreState, 'audioCurrentId' | 'audioQueue' | 'audioIndex' | 'audioPlaying' | 'audioPosition' | 'audioDuration' | 'nowPlayingOpen' | 'sleepTimerEnd' | 'audioSeekToken'>>) => void
+  patchAudio: (p: Partial<Pick<StoreState, 'audioCurrentId' | 'audioQueue' | 'audioIndex' | 'audioPlaying' | 'audioPosition' | 'audioDuration' | 'nowPlayingOpen' | 'playView' | 'sleepTimerEnd' | 'audioSeekToken'>>) => void
   /** 持久偏好补丁（落盘） */
   patchAudioPrefs: (p: Partial<AudioPrefs>) => void
   saveAudioPosition: (id: string, pos: number, dur: number) => void
@@ -172,6 +178,7 @@ export const useStore = create<StoreState>((set, get) => {
     audioPosition: 0,
     audioDuration: 0,
     nowPlayingOpen: false,
+    playView: 'player',
     sleepTimerEnd: null,
     audioSeekToken: 0,
     videoPlayingId: null,

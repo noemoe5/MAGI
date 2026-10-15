@@ -14,12 +14,14 @@ import FloatingPlayerControls, {
 } from '../folia/components/FloatingPlayerControls'
 import type { PlayerControlSlotActionId } from '../folia/components/floating-player/playerControlSlotActions'
 import Lattice from '../folia/components/app/lattice/Lattice'
+import MagiPlayerPanel from './MagiPlayerPanel'
 import type { LatticePlaybackActions } from '../folia/components/app/lattice/LatticePlaybackProvider'
 import type { LatticeLyricSource } from '../folia/components/app/lattice/lyrics/types'
 import VisualizerRenderer from '../folia/components/visualizer/VisualizerRenderer'
 import { useVisualizerRendererModel } from '../folia/components/visualizer/useVisualizerRendererModel'
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel } from '../folia/components/visualizer/registry'
 import { useVisualizerSettingsStore } from '../folia/stores/useVisualizerSettingsStore'
+import { setIsPanelOpen, setView } from '../folia/stores/useAppViewStore'
 import {
   selectDisplayDuration,
   selectDisplayLyrics,
@@ -58,6 +60,7 @@ export default function FoliaMediaLayer() {
   const prefs = useStore((s) => s.audioPrefs)
   const accent = useStore((s) => s.settings.accent)
   const nowPlayingOpen = useStore((s) => s.nowPlayingOpen)
+  const playView = useStore((s) => s.playView)
   const sleepTimerEnd = useStore((s) => s.sleepTimerEnd)
   const patchAudio = useStore((s) => s.patchAudio)
   const patchAudioPrefs = useStore((s) => s.patchAudioPrefs)
@@ -76,7 +79,7 @@ export default function FoliaMediaLayer() {
   const currentLineIndex = usePlaybackStore((s) => s.currentLineIndex)
 
   const theme = useMemo(() => createFoliaTheme(accent), [accent])
-  const [barOffset, setBarOffset] = useState(() => {
+  const [, setBarOffset] = useState(() => {
     const raw = Number(localStorage.getItem(BOTTOM_BAR_OFFSET_KEY))
     return Number.isFinite(raw) && raw > 0 ? raw : 24
   })
@@ -91,6 +94,24 @@ export default function FoliaMediaLayer() {
   useEffect(() => {
     publishPlaying(playing, !!track)
   }, [playing, track])
+
+  // —— folia 的「当前在哪一档」——
+  //
+  // 这个 store 不只是导航记录：可视化器画不画歌词只认它（`resolveVisualizerShowText` 里
+  // `currentView === 'player'` 是唯一放行条件），背景模糊、常驻返回按钮也各读它一次。
+  // MAGI 的 nowPlayingOpen / playView 必须同步过去，否则歌词浮层永远被判成「不该显示」——
+  // 这正是「没有歌词」的真正原因（跟音频数据无关）。
+  //
+  // 顺带把侧栏展开：folia 的封面位就在 UnifiedPanel 里（没有第二处封面），
+  // 面板不展开就只剩一块动画背景，观感就是「没有封面、没有播放页」。
+  useEffect(() => {
+    if (!nowPlayingOpen) {
+      setView('home')
+      return
+    }
+    setView(playView)
+    setIsPanelOpen(playView === 'player')
+  }, [nowPlayingOpen, playView])
 
   // 歌词（同名 .lrc 优先，其次内嵌；解析结果缓存）
   useEffect(() => {
@@ -141,8 +162,18 @@ export default function FoliaMediaLayer() {
     toggleAudio()
   }, [toggleAudio])
 
-  const onOpenLattice = useCallback(() => patchAudio({ nowPlayingOpen: true }), [patchAudio])
-  const onCloseLattice = useCallback(() => patchAudio({ nowPlayingOpen: false }), [patchAudio])
+  // 打开全屏播放层。folia 的 `currentView` 有三档（home / player / lattice）：
+  //   player  = 播放页：可视化器全屏铺底（封面配色背景 + 自带歌词浮层）+ 侧栏（大封面/标签页）
+  //   lattice = 歌曲墙：队列海报墙
+  // MAGI 的底部条标题点进来给的是 player（这才是「桌面播放形式」），歌曲墙是单独一档。
+  const onOpenPlayer = useCallback(() => {
+    // 进播放页顺手把侧栏展开：folia 里这两件事是分开的开关，但用户点进「播放页」想看的就是封面
+    setIsPanelOpen(true)
+    patchAudio({ nowPlayingOpen: true, playView: 'player' })
+  }, [patchAudio])
+  const onOpenLattice = useCallback(() => patchAudio({ nowPlayingOpen: true, playView: 'lattice' }), [patchAudio])
+  const onCloseLayer = useCallback(() => patchAudio({ nowPlayingOpen: false }), [patchAudio])
+  const onCloseLattice = onOpenPlayer
 
   const cycleSleepTimer = useCallback(() => {
     const now = useStore.getState().sleepTimerEnd
@@ -284,20 +315,21 @@ export default function FoliaMediaLayer() {
         lyricCurrentTime={lyricCurrentTime}
         duration={displayDuration}
         loopMode={toLoopMode(prefs.mode) as 'off' | 'all' | 'one'}
-        currentView={nowPlayingOpen ? 'lattice' : 'home'}
+        currentView={nowPlayingOpen ? playView : 'home'}
         audioSrc={usePlaybackStore.getState().audioSrc}
         canTogglePlay
         lyrics={lyrics}
         onSeek={onSeek}
         onTogglePlay={onTogglePlay}
         onToggleLoop={cyclePlayMode}
-        onNavigateToPlayer={onOpenLattice}
+        onNavigateToPlayer={onOpenPlayer}
         onFocusLatticeCurrentSong={onOpenLattice}
         primaryColor='var(--text-primary)'
         secondaryColor='var(--text-secondary)'
         theme={theme}
         isDaylight={false}
-        isHidden={nowPlayingOpen}
+        // folia 只在歌曲墙那一档隐藏底部条（当前海报上自带控制），播放页上它是常驻的主传输条
+        isHidden={nowPlayingOpen && playView === 'lattice'}
         trackNavigation={trackNavigation}
         slotPrimary={slotPrimary}
         slotSecondary={slotSecondary}
@@ -309,9 +341,11 @@ export default function FoliaMediaLayer() {
       />
 
       {nowPlayingOpen && song && (
-        <div className='folia-stage has-visualizer'>
-          {/* folia 原可视化器：作为播放台背景（自绘 canvas / webgl），不吃鼠标事件 */}
-          <div className='folia-visualizer-host' aria-hidden>
+        <>
+          {/* z-0 播放页本体 —— folia 的视觉层：「VISUALIZER (Background Layer & Main Click Target)」。
+              封面配色背景 + 它自带的歌词浮层（VisualizerSubtitleOverlay）都长在这里，
+              这就是「桌面播放形式」；歌曲墙是它上面的一档，不是它的替代品。 */}
+          <div className='folia-player-surface' data-testid='player-visual-surface'>
             <VisualizerRenderer {...visualizerModel} />
           </div>
 
@@ -322,27 +356,51 @@ export default function FoliaMediaLayer() {
             <button type='button' title='下一个动画' onClick={() => stepVisMode(1)}>›</button>
           </div>
 
-          <div className='folia-lattice-host' data-offset={barOffset}>
-            <Lattice
-              controls={controls}
-              lyrics={lyrics}
-              lyricSource={lyricSource}
-              lyricKeywordColoringEnabled={false}
+          {/* z-10 歌曲墙：只在 lattice 档出现 */}
+          {playView === 'lattice' && (
+            <div className='folia-lattice-host'>
+              <Lattice
+                controls={controls}
+                lyrics={lyrics}
+                lyricSource={lyricSource}
+                lyricKeywordColoringEnabled={false}
+                currentSong={song}
+                playerState={displayState}
+                currentTime={currentTime}
+                playbackDuration={displayDuration}
+                canTogglePlayback
+                queue={playQueue}
+                isDaylight={false}
+                onBack={onOpenPlayer}
+                onGoHome={onCloseLayer}
+                onOpenPlayer={onOpenPlayer}
+                onPlaySong={onPlaySong}
+                onTogglePlayback={onTogglePlay}
+                onSeek={onSeek}
+              />
+            </div>
+          )}
+
+          {/* z-60 播放页侧栏：folia 原 UnifiedPanel（大封面 + 标签页：封面/控制/队列/账户） */}
+          {playView === 'player' && (
+            <MagiPlayerPanel
+              theme={theme}
+              onClose={onCloseLayer}
+              onOpenLattice={onOpenLattice}
               currentSong={song}
               playerState={displayState}
-              currentTime={currentTime}
-              playbackDuration={displayDuration}
-              canTogglePlayback
-              queue={playQueue}
-              isDaylight={false}
-              onBack={onCloseLattice}
-              onOpenPlayer={onCloseLattice}
+              loopMode={toLoopMode(prefs.mode) as 'off' | 'all' | 'one'}
+              onToggleLoop={cyclePlayMode}
+              onTogglePlay={onTogglePlay}
+              onNext={() => audioNext()}
+              onPrev={audioPrev}
               onPlaySong={onPlaySong}
-              onTogglePlayback={onTogglePlay}
-              onSeek={onSeek}
+              queue={playQueue}
+              lyricTimelineOffsetMs={prefs.lyricOffsetMs ?? 0}
+              onLyricTimelineOffsetChange={(value) => patchAudioPrefs({ lyricOffsetMs: value })}
             />
-          </div>
-        </div>
+          )}
+        </>
       )}
     </>
   )

@@ -146,12 +146,12 @@ export const getCoverAssetUsage = async (): Promise<number> => {
   const directory = await getOpfsCoverDirectory(false);
   if (!directory) return 0;
   let total = 0;
-  // MAGI 注：TS 5.6 的 DOM 类型尚未声明 FileSystemDirectoryHandle.values()（TS 7 才有），
-  // 运行时该 API 存在，这里直接按异步可迭代处理。
-  for await (const entry of directory as unknown as AsyncIterable<FileSystemFileHandle | FileSystemDirectoryHandle>) {
+  for await (const entry of directory.values()) {
     if (entry.kind !== 'file') continue;
     try {
-      total += (await entry.getFile()).size;
+      // lib.dom 把 values() 的元素标成 FileSystemHandle（不是可判别的联合），
+      // 上面的 entry.kind 判断在类型层面收窄不了，这里显式断言一次。
+      total += (await (entry as FileSystemFileHandle).getFile()).size;
     } catch {
       // A concurrently removed cache entry is equivalent to a cache miss.
     }

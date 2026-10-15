@@ -20,8 +20,9 @@
 
 左侧导航切换「音乐」分区。这一块不是「参考 folia 做的」，而是**把 folia-major 的源码按 import 闭包整体搬进 `src/folia/`**（1039 个文件），再用别名 `@ → src/folia` 让 folia 内部的 `@/xxx` 与相对引用原样解析 —— 所以界面、动效、状态机、样式都和上游一致。
 
-- **底部播放条**：folia 原版 Folium 胶囊进度条，随全局常驻；首页态收成一条细进度胶囊，悬停展开
-- **Lattice 全屏舞台**：大封面海报墙 + 世界层 + 逐行歌词 + 铬层工具 + 播放队列，framer-motion 转场
+- **底部播放条**：folia 原版 Folium 胶囊进度条，随全局常驻；首页态收成一条细进度胶囊，悬停展开（点它 = 进播放页）
+- **播放页**（`currentView = 'player'`，进播放层的默认档）：可视化器全屏铺底 —— 封面取色背景 + 它自带的逐字歌词与译文字幕浮层 —— 右侧展开 folia 的 `UnifiedPanel` 侧栏（512px 大封面 + 五个标签页：封面 / 在线歌词 / 控制 / 队列 / 账户）
+- **Lattice 全屏舞台**（`currentView = 'lattice'`）：大封面海报墙 + 世界层 + 逐行歌词 + 铬层工具 + 播放队列，framer-motion 转场。它叠在可视化器**之上**，是播放页之外的另一档，不是播放页的替代品
 - **逐字歌词**：pixi 8 渲染，标准 LRC 与增强型逐字都支持（同名 `.lrc` 或 ID3 内嵌），带歌词快慢微调与译文字幕叠加
 - **14 种可视化模式**：`cadenza` `cappella` `claddagh` `classic` `diorama` `fume` `lumiere` `monet` `partita` `pendolo` `sonnet` `still` `tempera` `tilt`，另有 6 种背景模式（`common` `latent` `monet` `nomand` `sora` `url`）；每种模式独立分包按需加载，diorama 内含 three.js
 - **本地音乐库**：单文件导入 / 递归扫描文件夹；ID3v2 / FLAC / Vorbis / MP4 元数据与内嵌封面（由主进程探测后下发）
@@ -29,7 +30,7 @@
 - 支持 Windows SMTC 媒体键（Media Session）
 - 播放引擎：HTML5 Audio + Web Audio 可视化，主进程 HTTP 服务带 Range 支持
 
-> **移植时的两处必要改动**：① folia 的 3 处 Web Worker 路径在 MAGI 里被禁用（打包后渲染层走 `file://`，Worker 脚本加载不可靠；这三处在 MAGI 都是死代码，元数据改由主进程 `mediaProbe` 提供，歌词解析改为同步就地计算，automix 分析退回主线程跑同一套数学）。② folia 依赖 `file-type@^21` 的 `./core` 导出，MAGI 的 `music-metadata@12` 带的是 `file-type@22`，已改为 `from 'file-type'`。
+> **移植时的三处必要改动**：① folia 的 3 处 Web Worker 路径在 MAGI 里被禁用（打包后渲染层走 `file://`，Worker 脚本加载不可靠；这三处在 MAGI 都是死代码，元数据改由主进程 `mediaProbe` 提供，歌词解析改为同步就地计算，automix 分析退回主线程跑同一套数学）。② folia 依赖 `file-type@^21` 的 `./core` 导出，MAGI 的 `music-metadata@12` 带的是 `file-type@22`，已改为 `from 'file-type'`。③ folia 的 `App.tsx` / `useAppNavigation` 没进闭包（导航要驱动 `window.history`），所以「当前在哪一档」由 MAGI 侧写入 `useAppViewStore.view` —— **这个 store 不能省**：可视化器画不画歌词只认 `resolveVisualizerShowText` 里的 `currentView === 'player'`，漏写就是「有音频、没歌词」。
 
 ## 🎬 视频播放（内嵌 mpv · 真 HDR）
 

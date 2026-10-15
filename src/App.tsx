@@ -30,7 +30,6 @@ export default function App() {
   const section = useStore((s) => s.section)
   const setSection = useStore((s) => s.setSection)
   const audioCurrentId = useStore((s) => s.audioCurrentId)
-  const nowPlayingOpen = useStore((s) => s.nowPlayingOpen)
   const videoPlayingId = useStore((s) => s.videoPlayingId)
   const [ready, setReady] = useState(false)
 

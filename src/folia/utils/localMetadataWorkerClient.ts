@@ -1,8 +1,8 @@
-// MAGI 版：不启用 Web Worker。
-// folia 原版用 worker + music-metadata 在渲染层解析本地文件标签；MAGI 的媒体库元数据统一由
-// Electron 主进程（`mediaProbe` / `mediaSidecar`）提供，这条渲染层路径在 MAGI 里不会被走到。
-// 保留接口形状（含 EmbeddedMetadataResult / HashedLocalCoverResult），实现改为就地空实现，
-// 既避免把 music-metadata 打进渲染层，也避开 Electron file:// 下 Worker 源不可靠的问题。
+// MAGI 版：folia 原本用 Worker 跑 music-metadata 解析本地文件标签。
+// 打包后渲染层走 `file://`，Worker 脚本源不可靠；而且 MAGI 里这条路径本来就是死代码——
+// 音频元数据统一由主进程的 `media-probe` 出（`electron/main.cjs`），渲染层不再自己读标签，
+// music-metadata 也就没被打进渲染层包。
+// 所以这里保留上游的导出面与类型，实现一律回答「拿不到」，调用方自然会走主进程那条路。
 
 export interface EmbeddedMetadataResult {
     title?: string;
@@ -29,7 +29,7 @@ export interface HashedLocalCoverResult {
     coverAssetId: string;
 }
 
-/** 保留导出以免调用方改动；MAGI 下为无操作。 */
+/** MAGI 里没有 worker；永远返回 null。 */
 export const initMetadataWorker = (): Worker | null => null;
 
 export const parseEmbeddedMetadataAsync = async (
@@ -40,4 +40,3 @@ export const parseEmbeddedMetadataAsync = async (
 export const hashLocalCoverBlobAsync = async (
     _cover: Blob
 ): Promise<HashedLocalCoverResult | null> => null;
-

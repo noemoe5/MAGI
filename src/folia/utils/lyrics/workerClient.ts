@@ -1,10 +1,12 @@
+import { LyricData } from '../../types';
 import { parseLyricsByFormat, type LyricParseFormat } from './parserCore';
-import type { LyricData } from '../../types';
 import type { LyricProcessingOptions } from './types';
 
-// MAGI 版：不启用 Web Worker。
-// 原因：Electron 生产环境以 file:// 载入渲染层，Worker 脚本源（file:// 不透明源）不可靠；
-// 且歌词解析本身已足够轻量（parserCore 同步函数），直接就地计算，行为与 worker 分支完全一致。
+// MAGI 版：folia 原本把歌词解析丢给 Web Worker（`workers/lyricsParser.worker.ts`）。
+// 打包后渲染层走 `file://`，Worker 脚本源不可靠，所以这里改成**同一段逻辑就地跑**——
+// 依赖的 `parseLyricsByFormat` 本来就是纯函数，不碰 DOM，省掉结构克隆反而更快。
+// 导出面（`toWorkerLyricProcessingOptions` / `normalizeWorkerFormat` / `parseLyricsAsync`）与上游保持一致，
+// 调用方（三个 LyricAdapter）不需要改。
 
 type WorkerLyricProcessingOptions = Pick<LyricProcessingOptions, 'includeInterludes' | 'filterPattern'>;
 
@@ -19,12 +21,19 @@ export const toWorkerLyricProcessingOptions = (
     };
 };
 
-const normalizeWorkerFormat = (format: string): LyricParseFormat => {
-    if (format === 'yrc' || format === 'qrc' || format === 'krc' || format === 'awlrc' || format === 'enhanced-lrc' || format === 'vtt' || format === 'ttml') {
+/** 与 `workers/lyricsParser.worker.ts` 里的 normalizeWorkerFormat 同义（保留原签名以便调用方不变） */
+export const normalizeWorkerFormat = (format: string): LyricParseFormat => {
+    if (
+        format === 'yrc' || format === 'qrc' || format === 'krc' || format === 'awlrc'
+        || format === 'enhanced-lrc' || format === 'vtt' || format === 'ttml'
+    ) {
         return format;
     }
     return 'lrc';
 };
+
+/** MAGI 里没有 worker 了；保留这个导出只为兼容可能存在的调用，永远返回 null。 */
+export const initLyricsWorker = (): Worker | null => null;
 
 export const parseLyricsAsync = async (
     format: LyricParseFormat,
@@ -38,12 +47,11 @@ export const parseLyricsAsync = async (
             normalizeWorkerFormat(format),
             content,
             translation || '',
-            options,
-            romanization || '',
+            toWorkerLyricProcessingOptions(options) as LyricProcessingOptions | undefined,
+            romanization || ''
         );
     } catch (err) {
-        console.warn('[LyricsWorker] parsing error:', String(err));
+        console.warn('[Lyrics] parsing failed:', err);
         return null;
     }
 };
-

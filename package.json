@@ -1,6 +1,6 @@
 {
   "name": "magi",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "MAGI - local media hub: novel reader + music player (folia 一比一) + video player (embedded mpv, real HDR), built on Electron + React",
   "main": "electron/main.cjs",
   "author": "noemoe5",

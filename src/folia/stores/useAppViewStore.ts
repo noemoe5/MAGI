@@ -133,6 +133,7 @@ export const useAppViewStore = create<AppViewState>((set, get) => ({
 
 // Module-level handles for the assembly layer: these are actions, so they need no subscription.
 // Importing them where they are used keeps App.tsx out of the chain (see setStatusMessage).
+export const setView: AppViewState['setView'] = (view) => useAppViewStore.getState().setView(view);
 export const setIsPanelOpen: AppViewState['setIsPanelOpen'] = (next) => useAppViewStore.getState().setIsPanelOpen(next);
 export const setPanelTab: AppViewState['setPanelTab'] = (next) => useAppViewStore.getState().setPanelTab(next);
 export const registerCommandFilter: AppViewState['registerCommandFilter'] = (handle) => useAppViewStore.getState().registerCommandFilter(handle);

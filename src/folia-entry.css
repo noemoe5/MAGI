@@ -18,37 +18,40 @@
   --text-on-accent: #000000;
 }
 
-/* Lattice 全屏播放台的宿主：盖住整个应用（folia 的 .lattice-root 自带视觉层） */
-.folia-lattice-host {
+/* —— MAGI 适配：层级对齐 folia 的 App.tsx ——
+   folia 的三档 currentView 对应三层：
+     player  → 可视化器全屏铺底（z-0「Background Layer & Main Click Target」）+ UnifiedPanel 侧栏（z-60）
+     lattice → 歌曲墙（PosterWall），盖在可视化器之上
+   所以可视化器不是「挂在歌曲墙底下的背景」，而是播放页本体：封面配色背景 + 自带歌词浮层都长在它上面。 */
+
+/* z-0 播放页本体（folia 原 VisualizerRenderer） */
+.folia-player-surface {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 0;
   background: #09090b;
   color: var(--text-primary);
 }
 
-/* —— MAGI 适配：可视化器舞台 ——
-   folia 里可视化器是「播放页 / 首页」的背景层，MAGI 没有那一页，所以把它挂在 Lattice 播放台底下，
-   并复用 folia 自己在墙交接时用的手法（.is-handoff-surface-off / background: transparent）把
-   海报墙的底色让出来，让可视化器透上来。可视化器本身仍是 folia 原组件，未改写。 */
-.folia-visualizer-host {
+/* z-10 歌曲墙宿主（folia 的 .lattice-root 自带视觉层；底色让掉，透出可视化器） */
+.folia-lattice-host {
   position: fixed;
   inset: 0;
-  z-index: 55;
-  background: #000;
+  z-index: 10;
   color: var(--text-primary);
 }
 
-.folia-stage.has-visualizer .lattice-queue-root {
+.folia-lattice-host .lattice-queue-root {
   background: transparent;
 }
 
-/* 可视化器模式切换：folia 的切换入口在设置面板里，MAGI 没有那一层，这里给一颗最小步进器 */
+/* 可视化器模式切换：folia 的切换入口在设置面板里，MAGI 没有那一层，这里给一颗最小步进器。
+   z 压在歌曲墙之上、底部条/侧栏（z-60）之下。 */
 .magi-vis-switch {
   position: fixed;
   right: 18px;
   top: 56px;
-  z-index: 62;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -82,10 +85,5 @@
   min-width: 74px;
   text-align: center;
   color: var(--text-primary);
-}
-
-.folia-lattice-host + .fixed,
-.folia-player-bar-host {
-  z-index: 55;
 }
 
