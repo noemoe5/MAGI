@@ -1,6 +1,6 @@
 {
   "name": "magi",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "MAGI - local media hub: novel reader + foobar-style music library + libVLC video player, built on Electron + React",
   "main": "electron/main.cjs",
   "author": "noemoe5",
