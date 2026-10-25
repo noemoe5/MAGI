@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fmtTime } from '../lib/util'
 import { tr } from '../i18n'
+import { createGesture, gestureDown, gestureMove, gestureUp, gestureReset, dxToSeconds } from './gestureCore'
 import {
   IconPlay, IconPause, IconPrev, IconNext, IconClose, IconFullscreen, IconFullscreenExit,
   IconSubtitle, IconGauge, IconRatio, IconCamera, IconVolume, IconVolumeX, IconFilm
@@ -49,11 +50,7 @@ export default function VideoOverlay() {
   const rootRef = useRef<HTMLDivElement>(null)
   const hideTimer = useRef<number>(0)
   const osdTimer = useRef<number>(0)
-  const gesture = useRef({
-    x0: 0, y0: 0, mode: 'none' as 'none' | 'seek' | 'vol', dx: 0, dy: 0,
-    moved: false, startVol: 80, holdTimer: 0 as unknown as number,
-    lastTap: 0, lastTapX: 0, speedHold: false
-  })
+  const gesture = useRef(createGesture())
 
   // —— 透明化文档：vlc 在下面画像素 ——
   useEffect(() => {
@@ -137,51 +134,66 @@ export default function VideoOverlay() {
   }, [cmd, session?.id])
 
   // —— 手势 ——
-  const onPointerDown = (e: React.PointerEvent) => {
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+  //
+  // 判定全部在 gestureCore 里（纯函数、可单测）。这里只负责副作用：
+  // 进 OSD、发命令、改本地 state。
+  // 铁律：**没按下鼠标就不许改播放状态** —— gestureMove 在 !down 时一律返回 ignore。
+  const holdTimer = useRef(0)
+
+  const endGesture = useCallback(() => {
     const g = gesture.current
-    g.x0 = e.clientX; g.y0 = e.clientY
-    g.mode = 'none'; g.dx = 0; g.dy = 0; g.moved = false
-    g.startVol = state.muted ? 0 : state.volume
+    window.clearTimeout(holdTimer.current)
+    if (g.speedHold) cmd('speed', rate)
+    gestureReset(g)
+  }, [cmd, rate])
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    const g = gesture.current
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    gestureDown(g, e.clientX, e.clientY, { volume: state.muted ? 0 : state.volume })
     kickHideTimer()
-    g.holdTimer = window.setTimeout(() => {
-      if (!g.moved) { g.speedHold = true; cmd('speed', 2); showOsd('2x 快进中', '松开恢复') }
+    holdTimer.current = window.setTimeout(() => {
+      if (!g.moved && g.down) {
+        g.speedHold = true
+        cmd('speed', 2)
+        showOsd('2x 快进中', '松开恢复')
+      }
     }, 600) as unknown as number
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
     const g = gesture.current
-    g.dx = e.clientX - g.x0
-    g.dy = e.clientY - g.y0
-    if (Math.abs(g.dx) > 10 || Math.abs(g.dy) > 10) { g.moved = true; window.clearTimeout(g.holdTimer) }
+    // 没按下：只让控制条显形，绝不动时间轴/音量
+    if (!g.down) { kickHideTimer(); return }
     const w = rootRef.current?.getBoundingClientRect().width || 1
-    if (g.mode === 'none') {
-      if (Math.abs(g.dx) > 14) g.mode = 'seek'
-      else if (Math.abs(g.dy) > 14) g.mode = 'vol'
-    }
-    if (g.mode === 'seek') {
-      const delta = (g.dx / w) * 90
-      const target = Math.max(0, Math.min(duration || 1e9, time + delta))
-      showOsd(fmtTime(target), `${delta >= 0 ? '+' : ''}${Math.round(delta)}s`)
-    } else if (g.mode === 'vol') {
-      const vol = Math.max(0, Math.min(100, g.startVol - g.dy / 3))
-      cmd('volume', vol)
-      setState((s) => ({ ...s, volume: vol, muted: false }))
-      showOsd(`${Math.round(vol)}%`, '音量')
+    const r = gestureMove(g, e.clientX, e.clientY, { width: w })
+    if (r.type === 'ignore') return
+    window.clearTimeout(holdTimer.current)
+    if (r.type === 'seek') {
+      const target = Math.max(0, Math.min(duration || 1e9, time + r.value))
+      showOsd(fmtTime(target), `${r.value >= 0 ? '+' : ''}${Math.round(r.value)}s`)
+    } else if (r.type === 'vol') {
+      cmd('volume', r.value)
+      setState((s) => ({ ...s, volume: r.value, muted: false }))
+      showOsd(`${Math.round(r.value)}%`, '音量')
     }
   }
 
   const onPointerUp = (e: React.PointerEvent) => {
     const g = gesture.current
-    window.clearTimeout(g.holdTimer)
-    if (g.speedHold) { g.speedHold = false; cmd('speed', rate); kickHideTimer(); return }
-    if (g.mode === 'seek' && g.moved) {
+    if (!g.down) return
+    const up = gestureUp(g)
+    window.clearTimeout(holdTimer.current)
+    kickHideTimer()
+    if (up.wasSpeedHold) { cmd('speed', rate); return }
+    if (up.seekDelta !== null) {
       const w = rootRef.current?.getBoundingClientRect().width || 1
-      seekTo(time + (g.dx / w) * 90)
-      kickHideTimer()
+      seekTo(time + dxToSeconds(up.seekDelta, w))
       return
     }
-    if (g.moved) { kickHideTimer(); return }
+    if (up.moved) return
+    // 未移动的抬起 = 单击 / 双击
     const now = Date.now()
     const rect = rootRef.current?.getBoundingClientRect()
     const relX = rect ? (e.clientX - rect.left) / rect.width : 0.5
@@ -195,7 +207,6 @@ export default function VideoOverlay() {
       g.lastTapX = e.clientX
       window.setTimeout(() => { if (gesture.current.lastTap === now) setControlsOn((c) => !c) }, 260)
     }
-    kickHideTimer()
   }
 
   const onWheel = (e: React.WheelEvent) => {
@@ -244,17 +255,12 @@ export default function VideoOverlay() {
       className='vp-root vp-root-transparent'
       onWheel={onWheel}
     >
-      {/* 手势层 */}
+      {/* 手势层：只有按下之后才会响应拖动，裸鼠标移动只唤出控制条 */}
       <div className='vp-gesture'
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onDoubleClick={(e) => {
-          const rect = rootRef.current?.getBoundingClientRect()
-          const relX = rect ? (e.clientX - rect.left) / rect.width : 0.5
-          if (relX < 0.33) seekBy(-10)
-          else if (relX > 0.67) seekBy(10)
-        }} />
+        onPointerCancel={endGesture} />
 
       <AnimatePresence>
         {osd && (

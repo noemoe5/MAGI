@@ -120,7 +120,20 @@ export default function VideoStage() {
     return () => off?.()
   }, [])
 
-  if (mode === 'html5' || !item) return <VideoPlayer />
+  if (mode === 'html5' || !item) {
+    // 退回内置播放器时要让人一眼看出「为什么画面不一样、手势也不一样」，
+    // 否则用户只会觉得播放器坏了
+    return (
+      <>
+        <VideoPlayer />
+        {item && mode === 'html5' && (
+          <div className='vp-engine-note' title='找不到 libVLC：请确认 resources/vlc/libvlc.dll 存在，或执行 node scripts/fetch-vlc.mjs'>
+            未加载 libVLC · 已退回内置播放器
+          </div>
+        )}
+      </>
+    )
+  }
   // vlc 模式下主窗口不需要画视频；给一层黑底兜住首帧，避免闪出书架
   return <div className='vp-root' style={{ background: '#000' }} />
 }

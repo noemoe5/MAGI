@@ -34,7 +34,9 @@
     "smoke": "node scripts/smoke.mjs 9333",
     "probe:video": "node scripts/probe-video.mjs 9333",
     "probe:music": "node scripts/probe-music.mjs 9333",
+    "probe:gesture": "node scripts/probe-gesture.mjs 9333",
     "probe:reader": "node scripts/probe-reader.mjs 9333",
+    "test:gesture": "node --experimental-strip-types scripts/test-gesture-core.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
   },

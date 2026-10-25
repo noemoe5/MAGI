@@ -41,6 +41,9 @@ jobs:
       - name: TypeScript 类型检查
         run: npx tsc --noEmit
 
+      - name: 手势判定单测
+        run: npm run test:gesture
+
       - name: 渲染层构建
         run: npm run build
 

@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore'
 import { mediaUrl, fmtTime } from '../lib/util'
 import { parseSubtitle, activeCues, SubtitleCue } from '../lib/subtitle'
 import { tr } from '../i18n'
+import { createGesture, gestureDown, gestureMove, gestureUp, gestureReset, dxToSeconds } from '../video/gestureCore'
 import {
   IconPlay, IconPause, IconPrev, IconNext, IconClose, IconFullscreen, IconFullscreenExit,
   IconSubtitle, IconGauge, IconRatio, IconCamera, IconQueue, IconVolume, IconVolumeX, IconFilm
@@ -60,11 +61,7 @@ export default function VideoPlayer() {
 
   const hideTimer = useRef<number>(0)
   const osdTimer = useRef<number>(0)
-  const gesture = useRef({
-    x0: 0, y0: 0, t0: 0, mode: 'none' as 'none' | 'seek' | 'vol' | 'bright' | 'pan',
-    dx: 0, dy: 0, startVol: 0.8, startBright: 1, moved: false,
-    holdTimer: 0 as unknown as number, lastTap: 0, lastTapX: 0, startPanX: 0, startPanY: 0
-  })
+  const gesture = useRef(createGesture())
 
   const showOsd = useCallback((text: string, sub?: string) => {
     setOsd({ text, sub, key: Date.now() })
@@ -205,19 +202,34 @@ export default function VideoPlayer() {
   }, [activeSub])
 
   // —— 手势 ——
+  //
+  // 判定全部在 gestureCore 里（纯函数、可单测），这里只做副作用。
+  // 铁律：**没按下鼠标就不许改播放状态** —— 之前缺了这条判断，鼠标只是划过
+  // 视频就会快进/倒退，左侧竖滑还会把亮度一路拉到底。
+  const holdTimer = useRef(0)
+
+  const endGesture = useCallback(() => {
+    window.clearTimeout(holdTimer.current)
+    gestureReset(gesture.current)
+  }, [])
+
   const onPointerDown = (e: React.PointerEvent) => {
     const v = videoRef.current
     if (!v) return
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    if (e.button !== 0) return
+    e.currentTarget.setPointerCapture?.(e.pointerId)
     const g = gesture.current
-    g.x0 = e.clientX; g.y0 = e.clientY; g.t0 = Date.now()
-    g.mode = 'none'; g.dx = 0; g.dy = 0; g.moved = false
-    g.startVol = v.volume; g.startBright = brightness
-    g.startPanX = pan.x; g.startPanY = pan.y
+    gestureDown(g, e.clientX, e.clientY, {
+      volume: v.volume * 100,
+      brightness,
+      panX: pan.x,
+      panY: pan.y
+    })
     kickHideTimer()
     // 长按 2x
-    g.holdTimer = window.setTimeout(() => {
-      if (!g.moved && zoom <= 1.01) {
+    holdTimer.current = window.setTimeout(() => {
+      if (!g.moved && g.down && zoom <= 1.01) {
+        g.speedHold = true
         setSpeedHold(true)
         v.playbackRate = 2
         showOsd('2x 快进中', '松开恢复')
@@ -229,33 +241,31 @@ export default function VideoPlayer() {
     const v = videoRef.current
     if (!v) return
     const g = gesture.current
-    g.dx = e.clientX - g.x0
-    g.dy = e.clientY - g.y0
-    if (Math.abs(g.dx) > 10 || Math.abs(g.dy) > 10) {
-      g.moved = true
-      window.clearTimeout(g.holdTimer)
-    }
+    // 没按下：只让控制条显形，绝不动时间轴/音量/亮度
+    if (!g.down) { kickHideTimer(); return }
     const rect = rootRef.current?.getBoundingClientRect()
     const w = rect?.width || 1
-    if (g.mode === 'none') {
-      if (zoom > 1.01 && g.moved) g.mode = 'pan'
-      else if (Math.abs(g.dx) > 14) g.mode = 'seek'
-      else if (Math.abs(g.dy) > 14) g.mode = g.x0 < (rect?.left || 0) + w / 3 ? 'bright' : 'vol'
-    }
-    if (g.mode === 'seek') {
-      const delta = (g.dx / w) * 90
-      const target = Math.max(0, Math.min(duration || v.duration, time + delta))
-      showOsd(fmtTime(target), `${delta >= 0 ? '+' : ''}${Math.round(delta)}s`)
-    } else if (g.mode === 'bright') {
-      const b = Math.max(0.15, Math.min(1.6, g.startBright - g.dy / 300))
+    const r = gestureMove(g, e.clientX, e.clientY, {
+      width: w,
+      left: rect?.left || 0,
+      zoom,
+      allowBrightness: true
+    })
+    if (r.type === 'ignore') return
+    window.clearTimeout(holdTimer.current)
+    if (r.type === 'seek') {
+      const target = Math.max(0, Math.min(duration || v.duration, time + r.value))
+      showOsd(fmtTime(target), `${r.value >= 0 ? '+' : ''}${Math.round(r.value)}s`)
+    } else if (r.type === 'bright') {
+      const b = Math.max(0.15, Math.min(1.6, r.value / 100))
       setBrightness(b)
       showOsd(`${Math.round(b * 100)}%`, '亮度')
-    } else if (g.mode === 'vol') {
-      const vol = Math.max(0, Math.min(1, g.startVol - g.dy / 300))
+    } else if (r.type === 'vol') {
+      const vol = Math.max(0, Math.min(1, r.value / 100))
       v.volume = vol
       setVolume(vol); setMuted(false)
       showOsd(`${Math.round(vol * 100)}%`, '音量')
-    } else if (g.mode === 'pan') {
+    } else if (r.type === 'pan') {
       setPan({
         x: Math.max(-1, Math.min(1, g.startPanX + g.dx / (w / 2))),
         y: Math.max(-1, Math.min(1, g.startPanY + g.dy / (w / 2)))
@@ -267,24 +277,25 @@ export default function VideoPlayer() {
     const v = videoRef.current
     if (!v) return
     const g = gesture.current
-    window.clearTimeout(g.holdTimer)
-    if (speedHold) {
+    if (!g.down) return
+    const up = gestureUp(g)
+    window.clearTimeout(holdTimer.current)
+    if (up.wasSpeedHold) {
       setSpeedHold(false)
       v.playbackRate = rate
       kickHideTimer()
       return
     }
-    if (g.mode === 'seek' && g.moved) {
+    if (up.seekDelta !== null) {
       const rect = rootRef.current?.getBoundingClientRect()
       const w = rect?.width || 1
-      const delta = (g.dx / w) * 90
-      const target = Math.max(0, Math.min(duration || v.duration, time + delta))
+      const target = Math.max(0, Math.min(duration || v.duration, time + dxToSeconds(up.seekDelta, w)))
       try { v.currentTime = target } catch { /* ignore */ }
       setTime(target)
       kickHideTimer()
       return
     }
-    if (g.moved) { kickHideTimer(); return }
+    if (up.moved) { kickHideTimer(); return }
 
     // 未移动 = 点击：双击判定
     const now = Date.now()
@@ -425,17 +436,12 @@ export default function VideoPlayer() {
         onEnded={() => { commit(); videoNext() }}
       />
 
-      {/* 手势提示层（透明，承载点击/拖拽） */}
+      {/* 手势层：只有按下之后才响应拖动，裸鼠标移动只唤出控制条 */}
       <div className='vp-gesture'
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onDoubleClick={(e) => {
-          const rect = rootRef.current?.getBoundingClientRect()
-          const relX = rect ? (e.clientX - rect.left) / rect.width : 0.5
-          if (relX < 0.33) seekBy(-10)
-          else if (relX > 0.67) seekBy(10)
-        }} />
+        onPointerCancel={endGesture} />
 
       {/* OSD */}
       <AnimatePresence>
