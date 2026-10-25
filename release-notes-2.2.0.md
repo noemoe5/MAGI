@@ -42,9 +42,11 @@
 | 直接依赖 | 34 | **8** |
 | `node_modules` 顶层项 | 1000+ | **437** |
 | 渲染层产物 `dist/` | 数十 MB | **0.85 MB**（3 files） |
-| 安装包 | 146 MB | 约 250 MB（大头是 180 MB 的 libVLC） |
+| 安装包 | 146 MB | **138 MB** |
 
-`dist/` 这一项差了两个数量级，主要是 pixi + three + folia 的样式与字体资源一起走了。安装包反而变大，因为 libVLC 比 mpv 大——但它换来的是不用再维护「找不到内核就降级」这条分支。
+`dist/` 这一项差了两个数量级，主要是 pixi + three + folia 的样式与字体资源一起走了。
+
+安装包**反而小了 8 MB**，这点和直觉相反：解压后的 libVLC（180 MB）确实比 mpv.exe（115 MB）大，但 VLC 那堆小 DLL 在 NSIS 里压缩率极高，而 mpv 是一个已经压过的 115 MB 单文件、几乎压不动。真正省下来的是 folia 那层渲染资源。
 
 libVLC 不入库（解压后 180 MB，超 GitHub 单文件上限），自建时先跑 `node scripts/fetch-vlc.mjs`，它会按 清华 → 中科大 → 官方 三镜像回退下载 3.0.21 并解压到 `vendor/vlc/`，`electron-builder` 自动复制成包内 `resources/vlc`。
 
@@ -76,3 +78,5 @@ console errors = 0
 - 顺带修掉几处过期配置：`release.yml` 里还在拉便携 mpv、产物目录还写着 `../nr_out`；`tsconfig.json` 的 `@/*` 还指向被删掉的 `src/folia/*`；`LICENSE` 的第三方声明还写着「因移植 folia 而必须 AGPL」——现在删了移植层，继续用 AGPL 是选择而不是义务，声明里如实改了。
 - 许可证不变：**AGPL-3.0-or-later**。libVLC 是 LGPL-2.1+，以未修改的独立 DLL 随包分发、运行时 FFI 加载，可按 LGPL 要求自行替换。
 - folia 带走的还有 14 种可视化与 Lattice 歌曲墙。它们依赖在线歌词 provider 与账号态，本地跑起来只有空壳——想要可视化的话，Web Audio 那条通路还留着（`src/lib/visualizer.ts`），只是暂时没有消费者。
+- 这一版起有了真正的 CI：`ci.yml` 在每次 push / PR 上跑 `node --check electron/*.cjs` + `tsc --noEmit` + `vite build`；`release.yml` 在推 `v*` 标签时自动拉 libVLC、构建 NSIS 与 portable、发 Release。下面这个包就是它产出的。
+- 顺手记一个 CI 上的坑：`unzipper` 的 `Extract()` 在 GitHub runner 上解 74 MB 的 VLC zip 会抛 `Premature close`，本地却正常。改成优先调 Windows 自带的 `bsdtar`（**必须显式写 `System32\tar.exe`**——CI 的 bash 步骤里 `PATH` 首位是 Git Bash 的 `/usr/bin`，那里是 GNU tar，不认 zip）。
