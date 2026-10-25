@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 静态校验 + 构建
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装 Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci --no-audit --no-fund
+
+      - name: 主进程语法检查
+        shell: bash
+        run: |
+          for f in electron/*.cjs; do
+            echo "node --check $f"
+            node --check "$f"
+          done
+
+      - name: TypeScript 类型检查
+        run: npx tsc --noEmit
+
+      - name: 渲染层构建
+        run: npm run build
+
+      - name: 产物大小
+        if: always()
+        shell: bash
+        run: du -sh dist 2>/dev/null || true

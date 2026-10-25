@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: '以草稿形式创建 Release'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 Windows 安装包
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装 Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci --no-audit --no-fund
+
+      # 便携 libVLC 解压后约 180 MB，超 GitHub 单文件 100 MB 上限，不入库。
+      # 脚本按 清华 / 中科大 / 官方 三镜像依次回退，落地到 vendor/vlc，
+      # electron-builder 会自动把它复制成包内 resources/vlc。
+      - name: 拉取便携 libVLC 3.0.21
+        shell: bash
+        run: node scripts/fetch-vlc.mjs
+
+      - name: 构建 NSIS + portable
+        run: npm run dist -- --publish never
+
+      - name: 收集产物
+        shell: bash
+        run: |
+          ls -lh ../magi_out || true
+          mkdir -p artifacts
+          cp ../magi_out/*.exe artifacts/ 2>/dev/null || true
+          cp ../magi_out/*.blockmap artifacts/ 2>/dev/null || true
+          cp ../magi_out/latest.yml artifacts/ 2>/dev/null || true
+          ls -lh artifacts
+
+      - name: 上传工作流产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAGI-windows
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 发布 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
