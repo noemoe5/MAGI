@@ -22,6 +22,7 @@ const zh: Dict = {
   theme: '主题',
   accent: '强调色',
   language: '语言',
+  langOpenDir: '打开语言包目录（放一个 .json 即新增一种语言）',
   fontSize: '字号',
   lineHeight: '行距',
   fontFamily: '字体',
@@ -202,6 +203,7 @@ const en: Dict = {
   theme: 'Theme',
   accent: 'Accent',
   language: 'Language',
+  langOpenDir: 'Open language folder (drop a .json to add one)',
   fontSize: 'Font Size',
   lineHeight: 'Line Height',
   fontFamily: 'Font',
@@ -362,8 +364,63 @@ const en: Dict = {
   nextVideo: 'Next'
 }
 
-const dicts: Record<AppLang, Dict> = { zh, en }
+const dicts: Record<string, Dict> = { zh, en }
+
+// —— 外部语言包（借鉴 AutoSD：往 languages 目录丢一个 json 就是一种新语言）——
+// 内置 zh / en 永远在；外部包按 code 覆盖同名内置，删掉文件即失效。
+interface LangPack { code: string; name: string; strings: Dict }
+
+const external: Record<string, LangPack> = {}
+
+const BUILTIN_NAMES: Record<string, string> = { zh: '简体中文', en: 'English' }
+
+export interface LangOption {
+  code: string
+  name: string
+  builtin: boolean
+}
+
+/** 当前可选的界面语言：内置两个 + 已加载的外部语言包 */
+export function availableLanguages(): LangOption[] {
+  const list: LangOption[] = Object.keys(dicts).map((code) => ({
+    code,
+    name: BUILTIN_NAMES[code] ?? code,
+    builtin: true
+  }))
+  for (const p of Object.values(external)) {
+    const i = list.findIndex((x) => x.code === p.code)
+    if (i >= 0) list[i] = { code: p.code, name: p.name, builtin: true }
+    else list.push({ code: p.code, name: p.name, builtin: false })
+  }
+  return list
+}
+
+/**
+ * 启动时读一次外部语言包。读不到（浏览器里跑 / 目录为空 / json 坏了）都只当没有，
+ * 不影响启动 —— 内置 zh/en 永远够用。
+ */
+export async function loadExternalLanguages(): Promise<LangOption[]> {
+  const api = (window as unknown as { electronAPI?: { langList?: () => Promise<{ packs?: LangPack[] }> } }).electronAPI
+  if (!api?.langList) return availableLanguages()
+  try {
+    const res = await api.langList()
+    for (const pack of res?.packs ?? []) {
+      if (!pack?.code || typeof pack.strings !== 'object') continue
+      external[pack.code] = { code: pack.code, name: pack.name || pack.code, strings: pack.strings }
+    }
+  } catch {
+    /* 语言包坏了不该拖垮启动 */
+  }
+  return availableLanguages()
+}
+
+/** 打开用户语言包目录（不存在就先建） */
+export async function openLanguageDir(): Promise<void> {
+  const api = (window as unknown as { electronAPI?: { langOpenDir?: () => Promise<string> } }).electronAPI
+  try { await api?.langOpenDir?.() } catch { /* ignore */ }
+}
 
 export function tr(lang: AppLang, key: string): string {
-  return dicts[lang][key] ?? dicts.en[key] ?? key
+  const pack = dicts[lang] ?? external[lang]?.strings
+  return pack?.[key] ?? dicts.en[key] ?? key
 }

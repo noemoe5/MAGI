@@ -1,7 +1,7 @@
 // 视频覆盖窗口的 UI —— 沿用 MAGI 原有 Vivid 形态播放器的样式（vp-* 全套），
-// 唯一的变化是把「引擎」从 <video> 换成 mpv：所有读写在 mpv:state / video-mpv-command 上。
+// 唯一的变化是把「引擎」从 <video> 换成 vlc：所有读写在 vlc:state / video-vlc-command 上。
 //
-// 为什么要在独立窗口里画：mpv 是原生子窗口，永远画在同一个 HWND 的网页内容之上，
+// 为什么要在独立窗口里画：vlc 是原生子窗口，永远画在同一个 HWND 的网页内容之上，
 // 同一个窗口里的 HTML 压不住它。所以视频像素一个窗口、控制 UI 一个窗口（本文件）。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -20,7 +20,7 @@ interface MpvState {
 interface MpvSession { id: string; path: string; name: string; duration: number; subs?: SidecarSub[] }
 interface MpvInit { available: boolean; session: MpvSession | null; state: MpvState }
 
-const api = () => (window as any).electronAPI?.mpv
+const api = () => (window as any).electronAPI?.vlc
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const RATIOS: Array<{ v: 'contain' | 'cover' | 'fill'; label: string }> = [
   { v: 'contain', label: '适应' },
@@ -55,7 +55,7 @@ export default function VideoOverlay() {
     lastTap: 0, lastTapX: 0, speedHold: false
   })
 
-  // —— 透明化文档：mpv 在下面画像素 ——
+  // —— 透明化文档：vlc 在下面画像素 ——
   useEffect(() => {
     document.documentElement.classList.add('vp-overlay')
     return () => document.documentElement.classList.remove('vp-overlay')
@@ -266,7 +266,7 @@ export default function VideoOverlay() {
         )}
       </AnimatePresence>
 
-      {/* 顶栏（同时是窗口拖动条：mpv 视频窗盖住了原生标题栏，拖这里等于拖整个应用窗口） */}
+      {/* 顶栏（同时是窗口拖动条：vlc 视频窗盖住了原生标题栏，拖这里等于拖整个应用窗口） */}
       <motion.div className='vp-top' style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         animate={{ opacity: controlsOn ? 1 : 0, pointerEvents: controlsOn ? 'auto' : 'none' }}>
         <button className='vp-icon-btn' style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
@@ -275,7 +275,7 @@ export default function VideoOverlay() {
         </button>
         <div className='vp-title' style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <b>{session?.name || '—'}</b>
-          {state.width > 0 && <span>{state.width}×{state.height}{state.ok ? ' · mpv HDR' : ''}</span>}
+          {state.width > 0 && <span>{state.width}×{state.height}{state.ok ? ' · vlc HDR' : ''}</span>}
         </div>
         <div className='vp-top-actions' style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button className={`vp-icon-btn ${menu === 'sub' ? 'on' : ''}`} title={tr(lang, 'subtitles')}
@@ -382,7 +382,7 @@ export default function VideoOverlay() {
         )}
       </AnimatePresence>
 
-      {/* 菜单：字幕（外挂 + 内封 + 字号/位置，全部下发 mpv 自己渲染） */}
+      {/* 菜单：字幕（外挂 + 内封 + 字号/位置，全部下发 vlc 自己渲染） */}
       <AnimatePresence>
         {menu === 'sub' && controlsOn && (
           <motion.div className='vp-menu vp-menu-sub'
@@ -417,8 +417,8 @@ export default function VideoOverlay() {
       {/* 未拿到引擎时给个明确提示，而不是黑屏 */}
       {init && !init.available && (
         <div className="vp-osd" style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)', maxWidth: 420 }}>
-          <b>未找到 mpv</b>
-          <span>请确认 resources/mpv/mpv.exe 存在（打包版为 安装目录/resources/mpv/mpv.exe）</span>
+          <b>未找到 vlc</b>
+          <span>请确认 resources/vlc/vlc.exe 存在（打包版为 安装目录/resources/vlc/vlc.exe）</span>
         </div>
       )}
 

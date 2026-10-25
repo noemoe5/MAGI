@@ -11,10 +11,10 @@ import Reader from './components/Reader'
 import SettingsDrawer from './components/SettingsDrawer'
 import ResearchPanel from './components/ResearchPanel'
 import LiteratureDrawer from './components/LiteratureDrawer'
-import MusicLibrary from './components/MusicLibrary'
+import MusicPage from './music/MusicPage'
 import VideoLibrary from './components/VideoLibrary'
-import FoliaMediaLayer from './media/FoliaMediaLayer'
-import MpvStage from './video/MpvStage'
+import TransportBar from './music/TransportBar'
+import VideoStage from './video/VideoStage'
 import { IconBook, IconMusic, IconFilm } from './components/icons'
 import { tr } from './i18n'
 
@@ -103,7 +103,7 @@ export default function App() {
               <motion.div key='music' style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.99 }}
                 transition={{ duration: 0.25 }}>
-                {ready ? <MusicLibrary /> : <div className='loading'><span className='spin' /></div>}
+                {ready ? <MusicPage /> : <div className='loading'><span className='spin' /></div>}
               </motion.div>
             ) : section === 'video' ? (
               <motion.div key='video' style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
@@ -122,14 +122,14 @@ export default function App() {
         </main>
       </div>
 
-      {/* folia 播放界面层：底部播放条 + 全屏 Lattice 播放台（原样移植自 folia-major） */}
+      {/* 全局传输条：只要选过歌就常驻，书架/音乐/视频页都能控制播放 */}
       <AnimatePresence>
-        {audioCurrentId && <FoliaMediaLayer key='folia-layer' />}
+        {audioCurrentId && <TransportBar key='transport-bar' />}
       </AnimatePresence>
 
-      {/* 视频播放器：默认走 mpv（真 HDR / 全格式），没有 mpv 时自动退回 Vivid 形态的 <video> */}
+      {/* 视频播放器：默认走 libVLC（真 HDR / 全格式），没有 VLC 时自动退回 Vivid 形态的 <video> */}
       <AnimatePresence>
-        {videoPlayingId && <MpvStage key='video-player' />}
+        {videoPlayingId && <VideoStage key='video-player' />}
       </AnimatePresence>
 
       {/* 设置抽屉挂在应用层：书库页与阅读页都能打开 */}

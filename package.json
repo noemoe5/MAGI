@@ -1,55 +1,56 @@
 {
   "name": "magi",
-  "version": "2.1.1",
-  "description": "MAGI - local media hub: novel reader + music player (folia 一比一) + video player (embedded mpv, real HDR), built on Electron + React",
+  "version": "2.2.0",
+  "description": "MAGI - local media hub: novel reader + foobar-style music library + libVLC video player, built on Electron + React",
   "main": "electron/main.cjs",
   "author": "noemoe5",
+  "license": "AGPL-3.0-or-later",
+  "homepage": "https://github.com/noemoe5/MAGI#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noemoe5/MAGI.git"
+  },
+  "bugs": {
+    "url": "https://github.com/noemoe5/MAGI/issues"
+  },
+  "keywords": [
+    "electron",
+    "epub-reader",
+    "music-player",
+    "video-player",
+    "libvlc",
+    "vlc",
+    "flac",
+    "react",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
     "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env NODE_ENV=development electron .\"",
     "build": "vite build",
+    "smoke": "node scripts/smoke.mjs 9333",
+    "probe:video": "node scripts/probe-video.mjs 9333",
+    "probe:music": "node scripts/probe-music.mjs 9333",
+    "probe:reader": "node scripts/probe-reader.mjs 9333",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
   },
   "dependencies": {
-    "@applemusic-like-lyrics/ttml": "^1.0.1",
-    "@chenglou/pretext": "^0.0.9",
-    "@paper-design/shaders-react": "^0.0.80",
-    "@react-three/fiber": "^9.8.1",
-    "@tailwindcss/postcss": "^4.3.3",
-    "@types/blueimp-md5": "^2.18.2",
-    "@xmldom/xmldom": "^0.9.12",
-    "autoprefixer": "^10.6.1",
-    "blueimp-md5": "^2.19.0",
-    "budoux": "^0.9.3",
-    "dexie": "^4.4.6",
     "epubjs": "^0.3.93",
-    "fflate": "^0.8.3",
     "framer-motion": "^13.5.1",
-    "i18next": "^26.4.5",
-    "i18next-browser-languagedetector": "^8.2.1",
-    "lucide-react": "^1.48.0",
+    "koffi": "^3.3.4",
     "music-metadata": "^12.2.1",
-    "opencc-js": "^1.4.2",
-    "pinyin-pro": "^3.29.3",
-    "pixi.js": "^8.22.0",
-    "postcss": "^8.5.30",
     "react": "^19.3.1",
-    "react-colorful": "^5.8.1",
     "react-dom": "^19.3.1",
-    "react-i18next": "^17.0.16",
-    "react-window": "^2.3.4",
-    "tailwindcss": "^4.3.3",
-    "three": "^0.185.1",
-    "twgl.js": "^7.0.0",
     "unzipper": "^0.12.5",
-    "wanakana": "^5.3.1",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^4.3.2",
     "concurrently": "^9.0.1",
     "cross-env": "^7.0.3",
@@ -67,17 +68,27 @@
       "electron/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "node_modules/koffi/**/*"
+    ],
     "extraResources": [
       {
-        "from": "resources/mpv",
-        "to": "mpv",
+        "from": "vendor/vlc",
+        "to": "vlc",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "languages",
+        "to": "languages",
         "filter": [
           "**/*"
         ]
       }
     ],
     "directories": {
-      "output": "../nr_out"
+      "output": "../magi_out"
     },
     "win": {
       "target": [

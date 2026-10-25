@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { useStore } from '../store/useStore'
 import { THEMES, ACCENTS } from '../theme/themes'
-import { tr } from '../i18n'
+import { tr, availableLanguages, openLanguageDir } from '../i18n'
 import { IconClose } from './icons'
 import { ThemeName } from '../types'
 
@@ -41,7 +41,7 @@ export default function SettingsDrawer() {
             <div className='accent-grid'>
               {ACCENTS.map((a) => (
                 <div key={a.value} className={`accent-dot ${settings.accent === a.value ? 'sel' : ''}`}
-                  style={{ background: a.value }} title={a.label[lang]}
+                  style={{ background: a.value }} title={a.label[lang] ?? a.label.en}
                   onClick={() => setAccent(a.value)} />
               ))}
             </div>
@@ -49,10 +49,21 @@ export default function SettingsDrawer() {
 
           <div className='section'>
             <label>{tr(lang, 'language')}</label>
-            <div className='seg' style={{ width: '100%' }}>
-              <button style={{ flex: 1 }} className={settings.lang === 'zh' ? 'on' : ''} onClick={() => setLang('zh')}>{tr(lang, 'langZh')}</button>
-              <button style={{ flex: 1 }} className={settings.lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>{tr(lang, 'langEn')}</button>
+            <div className='seg' style={{ width: '100%', flexWrap: 'wrap' }}>
+              {availableLanguages().map((l) => (
+                <button key={l.code} style={{ flex: '1 1 40%' }}
+                  className={settings.lang === l.code ? 'on' : ''}
+                  title={l.builtin ? l.name : `${l.name}（${l.code}）· 外部语言包`}
+                  onClick={() => setLang(l.code)}>{l.name}</button>
+              ))}
             </div>
+            <button
+              style={{
+                marginTop: 6, width: '100%', background: 'transparent', borderRadius: 8,
+                border: '1px dashed currentColor', opacity: 0.75, padding: '6px 8px',
+                fontSize: 12, color: 'inherit', cursor: 'pointer'
+              }}
+              onClick={() => void openLanguageDir()}>{tr(lang, 'langOpenDir')}</button>
           </div>
 
           <div className='section'>

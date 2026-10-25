@@ -1,55 +1,85 @@
 # MAGI
 
-本地影音综合体：小说阅读器 + 音乐播放器 + 视频播放器，基于 Electron 构建。阅读交互克隆 Koodo Reader；**音频播放界面是把 [folia](https://github.com/chthollyphile/folia-major) 的播放代码整体移植进来的一比一还原**（底部播放条 + Lattice 全屏舞台 + pixi 逐字歌词 + 14 种可视化模式），不是仿写；**视频播放改用内嵌 mpv 引擎**，拿到 Chromium 做不到的真 HDR 直通与全格式解码。支持 EPUB / TXT 阅读、双模式阅读、GPT-SoVITS 语音朗读。
+[![Release](https://img.shields.io/github/v/release/noemoe5/MAGI?sort=semver)](https://github.com/noemoe5/MAGI/releases)
+[![CI](https://github.com/noemoe5/MAGI/actions/workflows/ci.yml/badge.svg)](https://github.com/noemoe5/MAGI/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](./LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078d4.svg)](#-下载)
+[![Electron](https://img.shields.io/badge/Electron-32-47848f.svg)](https://www.electronjs.org/)
+
+本地影音综合体：**EPUB / TXT 阅读器 + foobar2000 式本地音乐库 + libVLC 视频播放器**，一个窗口搞定。
+
+阅读交互沿用 Koodo Reader 的手感；音乐走 foobar2000 / MusicBee 的**曲库管理范式**（媒体库树 + 多列可排序表格 + 全局传输条），不搞播放器皮肤；视频内核换成 **libVLC**，通过 FFI 直接驱动 `libvlc.dll` 并把 vout 嵌进原生窗口。
 
 > 名字取自 EVA 里 NERV 的三贤机——书、乐、影三个分区，一个中枢。
 
 ## ✨ 功能特性
 
-- 📚 **书架管理**：导入 EPUB / TXT，封面墙展示，支持删除后重新导入
+- 📚 **书架管理**：导入 EPUB / TXT，封面墙展示，删除后可重新导入
 - 📖 **双阅读模式**：竖向滚动 / 横向翻页，设置内一键切换
 - 🎨 **阅读体验**：多主题、字体 / 字号 / 行距 / 边距可调
 - 📑 **导航与记忆**：目录、书签、标注、阅读进度自动保存
 - 🔊 **语音朗读**：GPT-SoVITS TTS，逐句朗读、自动翻页续读
-- 🔍 **文献查阅中心**：划词即查 + 搜索台 + 学术文献库 + 本地词库（见下）
-- 🎵 **音乐播放（folia 一比一移植）**：见下
-- 🎬 **视频播放（内嵌 mpv · 真 HDR）**：见下
-- 🌐 **中英双语界面**
+- 🔍 **文献查阅中心**：划词即查 + 搜索台 + 学术文献库 + 本地词库
+- 🎵 **音乐库（foobar2000 范式）**：媒体库树 + 多列排序表格 + 全局传输条
+- 🎬 **视频播放（libVLC 内核）**：硬解、外挂字幕、倍速、截图、断点续播
+- 🌐 **界面语言包外挂**
 
-## 🎵 音乐播放（folia 一比一移植）
+## 🎵 音乐库（foobar2000 / MusicBee 范式）
 
-左侧导航切换「音乐」分区。这一块不是「参考 folia 做的」，而是**把 folia-major 的源码按 import 闭包整体搬进 `src/folia/`**（1039 个文件），再用别名 `@ → src/folia` 让 folia 内部的 `@/xxx` 与相对引用原样解析 —— 所以界面、动效、状态机、样式都和上游一致。
+左侧导航切换「音乐」分区。这一块的取向是**曲库管理工具**，不是播放器皮肤：高信息密度、细行高、等宽数字、列头即排序。
 
-- **底部播放条**：folia 原版 Folium 胶囊进度条，随全局常驻；首页态收成一条细进度胶囊，悬停展开（点它 = 进播放页）
-- **播放页**（`currentView = 'player'`，进播放层的默认档）：可视化器全屏铺底 —— 封面取色背景 + 它自带的逐字歌词与译文字幕浮层 —— 右侧展开 folia 的 `UnifiedPanel` 侧栏（512px 大封面 + 五个标签页：封面 / 在线歌词 / 控制 / 队列 / 账户）
-- **Lattice 全屏舞台**（`currentView = 'lattice'`）：大封面海报墙 + 世界层 + 逐行歌词 + 铬层工具 + 播放队列，framer-motion 转场。它叠在可视化器**之上**，是播放页之外的另一档，不是播放页的替代品
-- **逐字歌词**：pixi 8 渲染，标准 LRC 与增强型逐字都支持（同名 `.lrc` 或 ID3 内嵌），带歌词快慢微调与译文字幕叠加
-- **14 种可视化模式**：`cadenza` `cappella` `claddagh` `classic` `diorama` `fume` `lumiere` `monet` `partita` `pendolo` `sonnet` `still` `tempera` `tilt`，另有 6 种背景模式（`common` `latent` `monet` `nomand` `sora` `url`）；每种模式独立分包按需加载，diorama 内含 three.js
-- **本地音乐库**：单文件导入 / 递归扫描文件夹；ID3v2 / FLAC / Vorbis / MP4 元数据与内嵌封面（由主进程探测后下发）
-- **断点续播**：每首歌记住播放位置；队列 / 音量 / 播放模式跨会话保留
+**左侧媒体库树**（从曲目数据实时聚合，不额外维护索引）
+
+- 媒体库：全部音乐 / 最近添加
+- 艺术家 / 专辑 / 流派 / 年份 / 文件夹（各自可折叠，带曲目计数）
+- 播放列表：最常播放 / 从未播放
+
+**主区多列表格**
+
+| # | 标题 | 艺术家 | 专辑 | 年份 | 时长 | 规格 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 安和桥 | 宋冬野 | 安和桥北 | — | 4:11 | FLAC 44.1k 24bit |
+
+- **点列头排序**，再点一次反向；`#` 列按专辑内曲序排（foobar 的默认语义）
+- 斑马纹 + 悬停高亮 + 当前播放行带标记与强调色
+- 双击播放，**播放队列跟随当前筛选结果**（筛到某张专辑，播完就停在这张专辑）
+- 长列表用 `content-visibility: auto` 跳过屏外渲染
+- 规格列把容器/编码与采样规格压在一列，扫一眼就能分辨无损与码率档位
+
+**全局传输条**（只要选过歌就常驻，书架 / 音乐 / 视频页都能控制）
+
+- 顶部细进度线可拖动 seek，时间码与总时长等宽显示
+- 上一首 / 播放暂停 / 下一首、音量滑杆、播放模式（顺序 / 随机 / 单曲循环）
+- 底部状态栏：当前视图、曲目数、总时长、无损曲目数、播放全部 / 随机 / 从曲库移除
+
+**其它**
+
+- 单文件导入 / 递归扫描文件夹；ID3v2 / FLAC / Vorbis / MP4 元数据与内嵌封面由主进程探测后下发
+- 每首歌记住断点；队列 / 音量 / 播放模式跨会话保留
 - 支持 Windows SMTC 媒体键（Media Session）
-- 播放引擎：HTML5 Audio + Web Audio 可视化，主进程 HTTP 服务带 Range 支持
+- 播放内核：Chromium 音频栈（`<audio>` + Web Audio），主进程本地 HTTP 服务带 Range 支持
 
-> **移植时的三处必要改动**：① folia 的 3 处 Web Worker 路径在 MAGI 里被禁用（打包后渲染层走 `file://`，Worker 脚本加载不可靠；这三处在 MAGI 都是死代码，元数据改由主进程 `mediaProbe` 提供，歌词解析改为同步就地计算，automix 分析退回主线程跑同一套数学）。② folia 依赖 `file-type@^21` 的 `./core` 导出，MAGI 的 `music-metadata@12` 带的是 `file-type@22`，已改为 `from 'file-type'`。③ folia 的 `App.tsx` / `useAppNavigation` 没进闭包（导航要驱动 `window.history`），所以「当前在哪一档」由 MAGI 侧写入 `useAppViewStore.view` —— **这个 store 不能省**：可视化器画不画歌词只认 `resolveVisualizerShowText` 里的 `currentView === 'player'`，漏写就是「有音频、没歌词」。
+> **2.2.0 起弃用 folia 移植层。** 早期版本把 [folia-major](https://github.com/chthollyphile/folia-major) 的源码整体搬进 `src/folia/`（1039 个文件）做一比一还原，但那层移植带来大量不稳定——在线账号/歌词 providers 在本地场景全是空实现，任何一处 noop 兜不住就整块崩；同时 pixi/three 让构建体积膨胀到几十 MB。现已整体移除，改为自研的稳定实现，产物从数十 MB 降到 **0.85 MB**。
 
-## 🎬 视频播放（内嵌 mpv · 真 HDR）
+## 🎬 视频播放（libVLC 内核）
 
-左侧导航切换「视频」分区。
+左侧导航切换「视频」分区。Chromium 的 `<video>` 在 Windows 上拿不到 HDR 色彩直通，所以视频像素交给 **libVLC 3.0.21**（便携版，随包分发在 `resources/vlc/`）。
 
-Chromium 的 `<video>` 在 Windows 上拿不到 HDR 色彩直通，所以视频改由**自带便携 mpv**（随包分发，`resources/mpv/mpv.exe`，v0.41.0 + libplacebo v7.375.0）解码：
+**接入方式**
 
-- **真 HDR 直通**：`--vo=gpu-next --gpu-api=d3d11 --target-colorspace-hint=yes`，并走 `--hwdec=auto-safe` 硬解
-- **全格式**：mpv/FFmpeg 支持的容器与编码基本都能放，不受 Chromium 内核限制
-- **窗口结构**：mpv 通过 `--wid` 嵌进一个专用的原生视频窗口（原生子窗口永远画在网页内容之上，UI 压不住它），控制 UI 由**另一个透明覆盖窗口**承载，两层尺寸位置始终跟随主窗口 —— 观感仍是「视频在 MAGI 里」
-- **通信**：mpv JSON IPC over Windows 命名管道，`observe_property` 实时回推 时间轴 / 时长 / 缓冲 / 暂停 / 音量 / 静音 / 倍速 / 分辨率 / EOF
-- **控制 UI**：
-  - 手势：左右拖动快进快退（OSD 提示）、双击左右 ±10s、双击中间全屏、长按 2 倍速、滚轮调音量
-  - 控制栏 3 秒无操作自动隐藏，单击唤出；进度条带缓冲显示与拖拽 seek
-  - 倍速（0.5x–2x）、画面比例（适应/裁剪/拉伸）、截图保存
-  - 字幕：外挂 `.srt` / `.vtt` / `.ass`（自动优先挂中文字幕）+ 内封字幕轨道选择，字号 / 位置可调、开关与延迟微调
-  - 播放队列连播、断点续播、播完自动下一集
-  - 键盘：空格播放暂停、←/→、↑/↓ 音量、F 全屏、M 静音、Esc 退出
-- **降级**：机器上找不到 mpv（例如自行构建时未带 `resources/mpv`）会自动退回 Chromium `<video>` 播放器，功能不丢、只是没有 HDR 直通
+- **FFI 直调**：用 [koffi](https://koffi.dev/)（N-API 预编译，无需 MSVC / node-gyp）加载 `libvlc.dll`，不依赖本机安装 VLC，也不弹独立播放器窗口
+- **HWND 嵌入**：`libvlc_media_player_set_hwnd()` 把 VLC 的 vout 挂进专用视频窗口。原生子窗口永远画在网页内容之上，所以控制 UI 由**另一个透明覆盖窗口**承载，两层尺寸位置始终跟随主窗口 —— 观感仍是「视频在 MAGI 里」
+- **状态轮询而非事件回调**：`libvlc_event_t` 是带 union 的 C 结构体，跨 FFI 解析脆弱。改为 10Hz 轮询 `get_state / get_time / get_length / audio_get_volume`，纯标量读取，`Ended` / `Error` 直接判定，不会漏事件
+
+**能力**
+
+- 硬解：`--avcodec-hw=d3d11va`，失败自动回落软解
+- 倍速 0.1x–8x、音量 / 静音、画面比例三态（适应 / 裁剪铺满 / 拉伸）
+- 字幕：运行时 `add_slave` 挂外挂 `.srt` / `.vtt` / `.ass`，内封轨道切换与开关；字号与位置改动后重载媒体并**保持原播放位置**
+- 截图：`libvlc_video_take_snapshot` 直接落盘到图片目录
+- 播放队列连播、断点续播、播完自动下一集
+- 键盘：空格播放暂停、←/→ seek、↑/↓ 音量、F 全屏、M 静音、Esc 退出
+- **降级**：找不到 `libvlc.dll`（例如自行构建时未拉内核）自动退回 Chromium `<video>`，功能不丢
 
 > 视频/音频文件通过主进程本地 HTTP 服务（`127.0.0.1` 随机端口 + Range）提供给播放器，仅限导入过的路径可访问。
 
@@ -90,19 +120,55 @@ Chromium 的 `<video>` 在 Windows 上拿不到 HDR 色彩直通，所以视频�
 
 所有查阅数据（笔记、文献、词库）随书库一起保存在本地 `library.json`，不上传任何服务器。
 
+## 🌏 界面语言（语言包外挂）
+
+界面语言不写死在代码里：往语言目录丢一个 `.json`，它就会出现在「设置 → 语言」里，删掉即消失。
+
+| 位置 | 说明 |
+| --- | --- |
+| `%APPDATA%\MAGI\languages\` | 自己装的语言包，优先级最高 |
+| `<安装目录>\resources\languages\` | 随包分发 |
+| `<仓库根>\languages\` | 开发期直接用 |
+
+```json
+{
+  "code": "ja",
+  "name": "日本語",
+  "strings": { "library": "本棚", "settings": "設定", "sectionMusic": "音楽" }
+}
+```
+
+只写要覆盖的词条即可，没写的自动回落英文，再没有就显示键名；json 写坏会被跳过、不影响启动。设置面板里的「打开语言包目录」会直接打开用户目录。完整键表见 `src/i18n/index.ts`，模板见 `languages/_template.json`。
+
+## ✅ 质量保障
+
+- **静态校验**：`npx tsc --noEmit`、`node --check electron/*.cjs`、`npm run build` 三项在 CI 里每次 push / PR 都跑（`.github/workflows/ci.yml`）。
+- **CDP 验收探针**：不起 GUI 也能核对真实运行结果 —— 探针连上调试端口，直接在运行中的应用里操作并断言。
+
+  ```bash
+  # 终端 A：带调试端口启动
+  npx electron . --remote-debugging-port=9333 --no-sandbox --in-process-gpu
+  # 终端 B：任选
+  npm run smoke          # 窗口/桥接/分区/语言包/控制台错误
+  npm run probe:video    # libVLC：开片→播放推进→seek→音量→速率→暂停→轨道→比例→截图→关闭复位
+  npm run probe:music    # 音乐库：渲染→列排序→分组筛选→双击播放→传输条→音量进度
+  ```
+
+- **自动发版**：推 `v*` 标签即触发 GitHub Actions 构建 NSIS + portable 并上传 Release（`.github/workflows/release.yml`）。
+
 ## 🛠 技术栈
 
 | 分类 | 技术 |
 | --- | --- |
 | 运行时 | Electron 32 |
 | 前端 | React 19 + Vite 5 + TypeScript 5 |
-| 样式 | Tailwind 4（分层引入，跳过 preflight，避免冲掉既有样式） |
+| 样式 | 手写 CSS + 主题变量（无 CSS 框架） |
 | 渲染 | EPUB.js 0.3.93 |
 | 动画 | framer-motion 13 |
 | 状态 | zustand 5 |
-| 歌词渲染 | pixi.js 8 |
 | 元数据 | music-metadata 12（主进程探测） |
-| 视频引擎 | 便携 mpv 0.41 + libplacebo 7（`--wid` 嵌入 + JSON IPC over named pipe） |
+| 视频引擎 | libVLC 3.0.21（koffi FFI + `set_hwnd` 嵌入） |
+| 音频引擎 | Chromium `<audio>` + Web Audio |
 
 ## 📂 目录结构
 
@@ -110,22 +176,22 @@ Chromium 的 `<video>` 在 Windows 上拿不到 HDR 色彩直通，所以视频�
 MAGI/
 ├── electron/
 │   ├── main.cjs           # 主进程（无边框窗口、IPC、流式解压 + 本地 HTTP 目录/媒体服务、联网代理、视频层两窗口编排）
-│   ├── mpv.cjs            # mpv 控制器（--wid 嵌入、JSON IPC、状态回推、语义化 command 动词）
-│   └── preload.cjs        # 桥接层（含 mpv 命名空间与 mpv:init/state/opened/closed 订阅）
-├── resources/mpv/         # 随包分发的便携 mpv（mpv.exe / mpv.com / d3dcompiler_43.dll）
+│   ├── vlc.cjs            # libVLC 控制器（koffi 绑定、HWND 嵌入、状态轮询、语义化 command 动词）
+│   └── preload.cjs        # 桥接层（含 vlc 命名空间与 vlc:init/state/opened/closed 订阅）
+├── vendor/vlc/            # 便携 libVLC（npm run fetch:vlc 下载，不入库）
 ├── src/
 │   ├── App.tsx            # 应用入口、分区导航、主题与转场
 │   ├── main.tsx           # 按 location.hash 分流：主窗口渲染 App，覆盖窗口渲染 VideoOverlay
-│   ├── folia/             # ★ folia-major 一比一移植代码（`@` 别名指向此处）
-│   │   ├── components/    # 播放条 / Lattice 舞台 / 歌词 / 14 种可视化模式 + 6 种背景
-│   │   ├── stores/        # folia 的 zustand 状态（播放、舞台、可视化设置…）
-│   │   ├── services/      # 音频图、automix、元数据…
-│   │   └── i18n/          # folia 自带多语言
-│   ├── media/FoliaMediaLayer.tsx  # folia 播放层与 MAGI 曲库/主进程探测的对接层
+│   ├── music/             # ★ 音乐库（foobar2000 范式）
+│   │   ├── MusicPage.tsx  # 主容器：顶栏 / 库树 / 表格 / 状态栏
+│   │   ├── LibraryTree.tsx# 左侧媒体库树（艺术家/专辑/流派/年份/文件夹/播放列表）
+│   │   ├── TrackTable.tsx # 多列表格（列头排序、规格串、播放行高亮）
+│   │   ├── TransportBar.tsx # 全局传输条（唯一 <audio> 宿主）
+│   │   └── music.css      # 音乐模块样式
 │   ├── video/
-│   │   ├── MpvStage.tsx   # 主窗口侧挂载点：开片、时间轴落盘、覆盖窗口事件翻译；无 mpv 时回落 HTML5
+│   │   ├── VideoStage.tsx # 主窗口侧挂载点：开片、时间轴落盘、覆盖窗口事件翻译；无 VLC 时回落 HTML5
 │   │   └── VideoOverlay.tsx # 透明覆盖窗口的控制 UI（手势 / 菜单 / 键盘 / OSD）
-│   ├── components/        # Reader / 设置 / 目录 / 书签 / 查阅面板 / 文献库 / 音乐库 / 视频库 等
+│   ├── components/        # Reader / 设置 / 目录 / 书签 / 查阅面板 / 文献库 / 视频库 等
 │   ├── store/useStore.ts  # 全局状态（书架、设置、进度、笔记、文献、词库、音频、视频）
 │   ├── lib/tts.ts         # GPT-SoVITS TTS 客户端
 │   ├── lib/lookup.ts      # 查阅引擎（本地匹配 + 多源联网 + 引用著录）
@@ -134,6 +200,12 @@ MAGI/
 │   ├── theme/themes.ts    # 主题与默认设置
 │   └── i18n/              # 中英文案
 ├── index.html
+├── languages/             # 外挂语言包目录（丢一个 json 就是一种新语言）
+├── scripts/
+│   ├── smoke.mjs          # CDP 冒烟测试
+│   ├── probe-video.mjs    # libVLC 内核验收
+│   ├── probe-music.mjs    # 音乐库验收
+│   └── fetch-vlc.mjs      # 下载便携 libVLC 到 vendor/vlc
 └── package.json
 ```
 
@@ -151,7 +223,8 @@ MAGI/
 
 ```bash
 npm install
-npm run electron:dev   # Vite + Electron 开发模式（热更新）
+node scripts/fetch-vlc.mjs   # 拉便携 libVLC（约 180 MB，仅首次；不拉则视频降级为 <video>）
+npm run electron:dev         # Vite + Electron 开发模式（热更新）
 ```
 
 仅调试前端 UI 可在浏览器打开 `npm run dev`（默认 http://localhost:5173）。
@@ -159,21 +232,17 @@ npm run electron:dev   # Vite + Electron 开发模式（热更新）
 ## 📦 打包
 
 ```bash
-npm run dist   # 产出 NSIS 安装版 + portable 单文件（输出到 ../nr_out）
+npm run dist   # 产出 NSIS 安装版 + portable 单文件（输出到 ../magi_out）
 npm run pack   # 仅产出解压目录 win-unpacked
 ```
 
 > 受限网络环境可使用镜像加速：
 > `npm_config_registry=https://registry.npmmirror.com ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`
 >
-> **便携 mpv 不入库**（`mpv.exe` 约 115 MB，超 GitHub 单文件 100 MB 上限，`.gitignore` 已排除 `resources/mpv/`），但**随安装包分发**。从源码自行打包前需要先把它放到位：
+> **便携 libVLC 不入库**（解压后约 180 MB，超 GitHub 单文件 100 MB 上限，`.gitignore` 已排除 `vendor/`），但**随安装包分发**。从源码自行打包前先跑 `node scripts/fetch-vlc.mjs`，它会把 VLC 3.0.21 下到 `vendor/vlc/`，`extraResources` 再原样复制成安装目录下的 `resources/vlc/`。
 >
-> 1. 取 [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake/releases) 的 `mpv-x86_64-*.7z`（国内可用 `https://gh-proxy.com/` 作前缀加速）。本仓库用的构建是 `mpv v0.41.0-1175-g492bae0768` + `libplacebo v7.375.0` + `FFmpeg N-127552`；**`gpu-next` 必须存在**，否则没有 HDR 直通。
-> 2. 解压后只需要三个文件：把 `mpv.exe`、`mpv.com`、`d3dcompiler_43.dll` 放进 `resources/mpv/`（`doc/` `installer/` `*.bat` 都可以不要）。
-> 3. `npm run dist` 会自动通过 `extraResources` 打进安装包，安装后的路径是 `resources/mpv/`。
->
-> **不放也能构建**，只是应用里视频会降级到 Chromium `<video>`，没有真 HDR。
-> 安装包体积较大（安装版约 146 MB / 便携版约 130 MB）主要就是这 115 MB 的 mpv。
+> **不放也能构建**，只是应用里视频会降级到 Chromium `<video>`，没有硬解与全格式支持。
+> 安装包体积较大（约 480 MB 解压后）主要就是这 180 MB 的 VLC 内核。
 >
 > **同一个输出目录不要连跑多个 target**（第二次运行会清空已有的 `win-unpacked`，且可能因 `app.asar` 被锁而残缺）；每个 target 各自用全新目录。
 
@@ -198,7 +267,7 @@ Windows 安装版（NSIS）与免安装单文件（portable）见 [Releases](htt
 
 ## 📌 说明
 
-当前版本仅构建 Windows 安装包。macOS / Linux 可自行 `npm run dist` 构建。
+当前版本仅构建 Windows 安装包。macOS / Linux 可自行 `npm run dist` 构建（视频层是 Windows HWND 专用，非 Windows 平台会自动降级到 `<video>`）。
 
-- 音乐播放界面代码移植自 [folia-major](https://github.com/chthollyphile/folia-major)（AGPL-3.0），视频引擎使用 [mpv](https://mpv.io/)（GPL-2.0+ / LGPL）便携构建。
+- 视频内核使用 [libVLC](https://www.videolan.org/vlc/libvlc.html)（LGPL-2.1+），以动态库形式单独分发并按需加载。
 - 沙箱/无 GUI 环境无法实跑验收时，可静态校验：`npx tsc --noEmit`、`npm run build`、`node --check electron/*.cjs`。

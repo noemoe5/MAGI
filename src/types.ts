@@ -2,7 +2,9 @@ export type ThemeName =
   | 'light' | 'dark' | 'sepia' | 'green' | 'black'
   | 'eye' | 'pink' | 'blue' | 'gray'
 
-export type AppLang = 'zh' | 'en'
+// 内置 zh / en；`languages/*.json` 丢进来的语言包会以各自的 code 出现（如 'ja'、'ru'）。
+// 用 `(string & {})` 既保留内置值的自动补全，又允许运行时扩展的语言码。
+export type AppLang = 'zh' | 'en' | (string & {})
 
 export type BookStatus = 'reading' | 'finished' | 'unread'
 

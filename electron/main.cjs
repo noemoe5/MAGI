@@ -195,7 +195,7 @@ function libPath() {
   return path.join(app.getPath('userData'), 'library.json')
 }
 
-// 主窗口引用提到模块级：视频层（mpv 视频窗口 + 透明覆盖窗口）要挂在它下面并跟随它的位置
+// 主窗口引用提到模块级：视频层（vlc 视频窗口 + 透明覆盖窗口）要挂在它下面并跟随它的位置
 let mainWindow = null
 
 function createWindow() {
@@ -306,6 +306,69 @@ ipcMain.handle('write-library', (e, data) => {
 })
 
 ipcMain.handle('get-path', () => app.getPath('userData'))
+
+// —— 界面语言包 ——
+// 往目录里丢一个 json 就是一种新语言（思路借鉴 AutoSD 的 language 文件夹）。
+// 搜索顺序即优先级：userData/languages（用户自建，可覆盖内置） → resources/languages（随包分发）
+// → <app>/languages（开发期直接放在仓库里）。
+function langDirs() {
+  const dirs = []
+  try { dirs.push(path.join(app.getPath('userData'), 'languages')) } catch { /* ignore */ }
+  if (process.resourcesPath) dirs.push(path.join(process.resourcesPath, 'languages'))
+  dirs.push(path.join(app.getAppPath(), 'languages'))
+  return [...new Set(dirs)]
+}
+
+// 统一成 { code, name, strings }；code 优先取文件里的 code 字段，其次取文件名
+function readLangFile(full) {
+  // 记事本 / PowerShell 存 UTF-8 时会带 BOM，JSON.parse 直接报错 —— 先剥掉
+  const raw = fs.readFileSync(full, 'utf-8').replace(/^\uFEFF/, '')
+  const data = JSON.parse(raw)
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('not an object')
+  const code = String(data.code || path.basename(full, path.extname(full))).trim()
+  if (!/^[a-zA-Z0-9_-]{2,16}$/.test(code)) throw new Error('bad code')
+  const strings = data.strings && typeof data.strings === 'object' ? data.strings : data
+  const flat = {}
+  for (const [k, v] of Object.entries(strings)) {
+    if (k === 'code' || k === 'name' || k === 'strings') continue
+    if (typeof v === 'string') flat[k] = v
+  }
+  return { code, name: String(data.name || code), strings: flat }
+}
+
+ipcMain.handle('lang-list', () => {
+  const seen = new Map()
+  const broken = []
+  for (const dir of langDirs()) {
+    let files = []
+    try {
+      // 下划线 / 点开头的文件是模板和隐藏文件，不当语言包加载
+      files = fs
+        .readdirSync(dir)
+        .filter((f) => f.toLowerCase().endsWith('.json') && !/^[_.]/.test(f))
+        .sort()
+    } catch {
+      continue // 目录不存在很正常
+    }
+    for (const f of files) {
+      const full = path.join(dir, f)
+      try {
+        const pack = readLangFile(full)
+        if (!seen.has(pack.code)) seen.set(pack.code, { ...pack, source: full })
+      } catch (err) {
+        broken.push({ file: full, error: String(err.message || err) })
+      }
+    }
+  }
+  return { packs: [...seen.values()], dirs: langDirs(), broken }
+})
+
+// 打开（必要时先创建）用户语言包目录，方便用户把 json 丢进去
+ipcMain.handle('lang-open-dir', async () => {
+  const dir = path.join(app.getPath('userData'), 'languages')
+  try { fs.mkdirSync(dir, { recursive: true }) } catch { /* ignore */ }
+  try { await shell.openPath(dir); return dir } catch { return dir }
+})
 
 // —— 文献查阅：联网代理 ——
 // 渲染进程受 CSP/CORS 限制，统一由主进程发起 http 请求并回传文本。
@@ -511,23 +574,22 @@ ipcMain.on('win-max', (e) => { const w = BrowserWindow.fromWebContents(e.sender)
 ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.close() })
 
 // ============================================================================
-// 视频播放层：mpv 嵌入
+// 视频播放层：libVLC 嵌入
 //
 // 为什么不是 <video>：Chromium 在 Windows 上拿不到真正的 HDR 直通（色深/色彩空间会被
-// 合成器吃掉），也放不了杜比视界 / 部分 HEVC 硬解。所以视频像素交给 mpv（vo=gpu-next +
-// target-colorspace-hint），MAGI 只负责界面。
+// 合成器吃掉），也放不了杜比视界 / 部分 HEVC 硬解。所以视频像素交给 libVLC，MAGI 只负责界面。
 //
-// 两个窗口，因为原生子窗口永远画在同一个 HWND 的网页内容**之上**，UI 压不住 mpv：
-//   videoWin   —— 无边框、不吃焦点；它的 HWND 交给 mpv 的 --wid，视频画在这里
+// 两个窗口，因为原生子窗口永远画在同一个 HWND 的网页内容**之上**，UI 压不住视频：
+//   videoWin   —— 无边框、不吃焦点；它的 HWND 交给 libvlc_media_player_set_hwnd，视频画在这里
 //   overlayWin —— 透明无边框、承载全部控制 UI（沿用原 Vivid 形态的 vp-* 样式）
 // 两者都 owner 挂在主窗口下，位置/尺寸始终跟主窗口一致，所以观感仍是「视频在 MAGI 里」。
 // ============================================================================
-const mpv = require('./mpv.cjs')
+const vlc = require('./vlc.cjs')
 
 const VIDEO_OVERLAY_HASH = 'vp-overlay'
 let videoWin = null
 let overlayWin = null
-let mpvOffState = null
+let vlcOffState = null
 let videoSession = null // { id, path, name, duration }
 let overlayReady = false
 let syncGuard = false
@@ -582,9 +644,9 @@ function createVideoWindows() {
       webPreferences: { contextIsolation: true, nodeIntegration: false, backgroundThrottling: false }
     })
     videoWin.setMenuBarVisibility(false)
-    // 这个窗口只为提供一个 HWND 给 mpv 的 --wid，页面内容无关紧要；
+    // 这个窗口只为提供一个 HWND 给 vlc 的 --wid，页面内容无关紧要；
     // 但必须吞掉 rejection —— 未处理的 Promise rejection 会让主进程直接退出。
-    videoWin.loadURL('about:blank').catch(() => { /* 无所谓，mpv 会把它的 HWND 整块盖住 */ })
+    videoWin.loadURL('about:blank').catch(() => { /* 无所谓，vlc 会把它的 HWND 整块盖住 */ })
     videoWin.on('closed', () => { videoWin = null })
   } else {
     videoWin.setBounds(b)
@@ -633,16 +695,16 @@ function createVideoWindows() {
 
 function pushVideoInit() {
   if (!overlayReady || !overlayWin || overlayWin.isDestroyed()) return
-  overlayWin.webContents.send('mpv:init', {
-    available: mpv.isMpvAvailable(),
+  overlayWin.webContents.send('vlc:init', {
+    available: vlc.isVlcAvailable(),
     session: videoSession,
-    state: mpv.getState()
+    state: vlc.getState()
   })
 }
 
 async function teardownVideoLayer() {
-  if (mpvOffState) { mpvOffState(); mpvOffState = null }
-  await mpv.stop()
+  if (vlcOffState) { vlcOffState(); vlcOffState = null }
+  await vlc.stop()
   videoSession = null
   for (const w of [overlayWin, videoWin]) {
     if (w && !w.isDestroyed()) {
@@ -656,42 +718,42 @@ async function teardownVideoLayer() {
   overlayReady = false
 }
 
-ipcMain.handle('video-mpv-available', () => ({ available: mpv.isMpvAvailable(), path: mpv.resolveMpvPath() }))
+ipcMain.handle('video-vlc-available', () => ({ available: vlc.isVlcAvailable(), path: vlc.resolveVlcDir() }))
 
-// 打开一个视频：建窗 → 启 mpv（--wid 指向视频窗）→ 把初始状态推给覆盖层
-ipcMain.handle('video-mpv-open', async (_e, payload) => {
+// 打开一个视频：建窗 → 启 vlc（--wid 指向视频窗）→ 把初始状态推给覆盖层
+ipcMain.handle('video-vlc-open', async (_e, payload) => {
   const { id, path: file, name, duration = 0, startAt = 0, subtitleFiles = [], volume = 80 } = payload || {}
   if (!file) return { ok: false, error: 'no-file' }
-  if (!mpv.isMpvAvailable()) return { ok: false, error: 'mpv-not-found' }
+  if (!vlc.isVlcAvailable()) return { ok: false, error: 'vlc-not-found' }
   if (!createVideoWindows()) return { ok: false, error: 'no-window' }
 
   videoSession = { id, path: file, name: name || path.basename(file), duration, subs: subtitleFiles }
-  if (mpvOffState) { mpvOffState(); mpvOffState = null }
-  mpvOffState = mpv.onState((s) => {
-    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('mpv:state', s)
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('mpv:state', s)
+  if (vlcOffState) { vlcOffState(); vlcOffState = null }
+  vlcOffState = vlc.onState((s) => {
+    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('vlc:state', s)
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vlc:state', s)
   })
 
-  const res = await mpv.start({ hostWindow: videoWin, file, startAt, subtitleFiles, volume })
+  const res = await vlc.start({ hostWindow: videoWin, file, startAt, subtitleFiles, volume })
   pushVideoInit()
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('mpv:opened', { ...videoSession, ok: res.ok, error: res.error || null })
+    mainWindow.webContents.send('vlc:opened', { ...videoSession, ok: res.ok, error: res.error || null })
   }
   return res
 })
 
-ipcMain.handle('video-mpv-command', async (_e, req) => {
+ipcMain.handle('video-vlc-command', async (_e, req) => {
   if (!req || !req.type) return false
-  return mpv.command(req.type, req.value)
+  return vlc.command(req.type, req.value)
 })
 
-ipcMain.handle('video-mpv-close', async () => {
+ipcMain.handle('video-vlc-close', async () => {
   await teardownVideoLayer()
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('mpv:closed')
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vlc:closed')
   return true
 })
 
-ipcMain.handle('video-mpv-fullscreen', async (_e, on) => {
+ipcMain.handle('video-vlc-fullscreen', async (_e, on) => {
   if (!mainWindow || mainWindow.isDestroyed()) return false
   const target = typeof on === 'boolean' ? on : !mainWindow.isFullScreen()
   mainWindow.setFullScreen(target)
@@ -705,12 +767,12 @@ ipcMain.handle('video-mpv-fullscreen', async (_e, on) => {
   return target
 })
 
-ipcMain.handle('video-mpv-screenshot', async (_e, name) => {
+ipcMain.handle('video-vlc-screenshot', async (_e, name) => {
   const dir = app.getPath('pictures') || app.getPath('downloads')
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const safe = String(name || 'frame').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)
   const target = path.join(dir, `${safe}-${stamp}.png`)
-  const ok = await mpv.command('screenshot', target)
+  const ok = await vlc.command('screenshot', target)
   return ok ? target : null
 })
 
@@ -722,5 +784,5 @@ ipcMain.on('video-ui-event', (e, evt) => {
 })
 
 // 覆盖窗口加载完毕后，把它该知道的一次性信息推进去
-ipcMain.on('video-mpv-overlay-ready', () => pushVideoInit())
+ipcMain.on('video-vlc-overlay-ready', () => pushVideoInit())
 

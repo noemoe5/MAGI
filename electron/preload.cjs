@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeLibrary: (data) => ipcRenderer.invoke('write-library', data),
   getPath: () => ipcRenderer.invoke('get-path'),
 
+  // —— 界面语言包（往 languages 目录丢 json 即新增语言）——
+  langList: () => ipcRenderer.invoke('lang-list'),
+  langOpenDir: () => ipcRenderer.invoke('lang-open-dir'),
+
   // —— 文献查阅 ——
   lookupFetch: (url) => ipcRenderer.invoke('lookup-fetch', url),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
@@ -29,36 +33,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mediaSidecar: (p) => ipcRenderer.invoke('media-sidecar', p),
   mediaReadText: (p) => ipcRenderer.invoke('media-read-text', p),
 
-  // —— 视频引擎（mpv 嵌入）——
+  // —— 视频引擎（libVLC 嵌入）——
   // 视频像素画在独立的视频窗口里，控制 UI 在透明覆盖窗口中；两侧都通过这些方法通信。
-  mpv: {
-    available: () => ipcRenderer.invoke('video-mpv-available'),
-    open: (payload) => ipcRenderer.invoke('video-mpv-open', payload),
-    command: (type, value) => ipcRenderer.invoke('video-mpv-command', { type, value }),
-    close: () => ipcRenderer.invoke('video-mpv-close'),
-    fullscreen: (on) => ipcRenderer.invoke('video-mpv-fullscreen', on),
-    screenshot: (name) => ipcRenderer.invoke('video-mpv-screenshot', name),
+  vlc: {
+    available: () => ipcRenderer.invoke('video-vlc-available'),
+    open: (payload) => ipcRenderer.invoke('video-vlc-open', payload),
+    command: (type, value) => ipcRenderer.invoke('video-vlc-command', { type, value }),
+    close: () => ipcRenderer.invoke('video-vlc-close'),
+    fullscreen: (on) => ipcRenderer.invoke('video-vlc-fullscreen', on),
+    screenshot: (name) => ipcRenderer.invoke('video-vlc-screenshot', name),
     onInit: (fn) => {
       const h = (_e, payload) => fn(payload)
-      ipcRenderer.on('mpv:init', h)
-      return () => ipcRenderer.removeListener('mpv:init', h)
+      ipcRenderer.on('vlc:init', h)
+      return () => ipcRenderer.removeListener('vlc:init', h)
     },
     onState: (fn) => {
       const h = (_e, state) => fn(state)
-      ipcRenderer.on('mpv:state', h)
-      return () => ipcRenderer.removeListener('mpv:state', h)
+      ipcRenderer.on('vlc:state', h)
+      return () => ipcRenderer.removeListener('vlc:state', h)
     },
     onOpened: (fn) => {
       const h = (_e, payload) => fn(payload)
-      ipcRenderer.on('mpv:opened', h)
-      return () => ipcRenderer.removeListener('mpv:opened', h)
+      ipcRenderer.on('vlc:opened', h)
+      return () => ipcRenderer.removeListener('vlc:opened', h)
     },
     onClosed: (fn) => {
       const h = () => fn()
-      ipcRenderer.on('mpv:closed', h)
-      return () => ipcRenderer.removeListener('mpv:closed', h)
+      ipcRenderer.on('vlc:closed', h)
+      return () => ipcRenderer.removeListener('vlc:closed', h)
     },
-    ready: () => ipcRenderer.send('video-mpv-overlay-ready')
+    ready: () => ipcRenderer.send('video-vlc-overlay-ready')
   },
 
   // 覆盖窗口 ↔ 主窗口的语义化事件（队列逻辑在渲染层的 store 里，主进程只做转发）
