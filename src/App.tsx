@@ -13,9 +13,11 @@ import ResearchPanel from './components/ResearchPanel'
 import LiteratureDrawer from './components/LiteratureDrawer'
 import MusicPage from './music/MusicPage'
 import VideoLibrary from './components/VideoLibrary'
+import DiscoverPage from './media/DiscoverPage'
+import SourceManager from './media/SourceManager'
 import TransportBar from './music/TransportBar'
 import VideoStage from './video/VideoStage'
-import { IconBook, IconMusic, IconFilm } from './components/icons'
+import { IconBook, IconMusic, IconFilm, IconCompass } from './components/icons'
 import { tr } from './i18n'
 
 export default function App() {
@@ -69,7 +71,8 @@ export default function App() {
   const railItems: Array<{ key: typeof section; icon: typeof IconBook; label: string }> = [
     { key: 'books', icon: IconBook, label: tr(settings.lang, 'sectionBooks') },
     { key: 'music', icon: IconMusic, label: tr(settings.lang, 'sectionMusic') },
-    { key: 'video', icon: IconFilm, label: tr(settings.lang, 'sectionVideo') }
+    { key: 'video', icon: IconFilm, label: tr(settings.lang, 'sectionVideo') },
+    { key: 'discover', icon: IconCompass, label: tr(settings.lang, 'sectionDiscover') }
   ]
 
   return (
@@ -111,6 +114,12 @@ export default function App() {
                 transition={{ duration: 0.25 }}>
                 {ready ? <VideoLibrary /> : <div className='loading'><span className='spin' /></div>}
               </motion.div>
+            ) : section === 'discover' ? (
+              <motion.div key='discover' style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.99 }}
+                transition={{ duration: 0.25 }}>
+                <DiscoverPage />
+              </motion.div>
             ) : (
               <motion.div key='home' style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.99 }}
@@ -144,6 +153,11 @@ export default function App() {
       </AnimatePresence>
       <AnimatePresence>
         {literatureOpen && <LiteratureDrawer />}
+      </AnimatePresence>
+
+      {/* 源管理弹窗：发现页与设置都能唤起，状态在 useSourceStore */}
+      <AnimatePresence>
+        <SourceManager />
       </AnimatePresence>
     </div>
   )

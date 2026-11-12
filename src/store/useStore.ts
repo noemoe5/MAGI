@@ -130,7 +130,9 @@ function snapshot(s: StoreState): LibraryData {
   return {
     books: s.books, bookmarks: s.bookmarks, highlights: s.highlights, settings: s.settings,
     notes: s.notes, literature: s.literature, knowledge: s.knowledge,
-    audioTracks: s.audioTracks, videoItems: s.videoItems,
+    // 远程试听曲目（container === 'remote'）只在本次会话有效，不写进 library.json
+    audioTracks: s.audioTracks.filter((t) => t.container !== 'remote'),
+    videoItems: s.videoItems,
     audioPositions: s.audioPositions, videoProgress: s.videoProgress,
     audioPrefs: {
       ...s.audioPrefs,

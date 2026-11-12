@@ -396,10 +396,97 @@ ipcMain.handle('lookup-fetch', async (e, url) => {
   }
 })
 
+// —— 源通道：通用请求出口（支持 POST / 自定义头 / 自定义超时）——
+// 渲染进程受 CORS 限制，AniList 这类 GraphQL 接口必须要 POST，所以单独开一条。
+// 只允许 http(s)，超时上限 30s，响应截断 2MB，避免被恶意源拖住主进程。
+ipcMain.handle('source-request', async (e, url, opts) => {
+  if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { error: 'invalid url' }
+  const o = opts || {}
+  const method = String(o.method || 'GET').toUpperCase()
+  if (!['GET', 'POST', 'PUT', 'DELETE', 'HEAD'].includes(method)) return { error: 'invalid method' }
+  const timeout = Math.min(Math.max(Number(o.timeoutMs) || 12000, 2000), 30000)
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeout)
+  try {
+    const headers = {
+      'User-Agent': 'MAGI/2.2 (https://github.com/noemoe5/MAGI)',
+      Accept: 'application/json,text/plain;q=0.9,*/*;q=0.8',
+      ...(o.headers || {})
+    }
+    const res = await fetch(url, {
+      method,
+      signal: ctrl.signal,
+      redirect: 'follow',
+      headers,
+      body: method === 'GET' || method === 'HEAD' ? undefined : String(o.body ?? '')
+    })
+    const text = await res.text()
+    return { ok: res.ok, status: res.status, text: text.slice(0, 2 * 1024 * 1024) }
+  } catch (err) {
+    return { error: String(err && err.name === 'AbortError' ? `超时 ${Math.round(timeout / 1000)}s` : err) }
+  } finally {
+    clearTimeout(timer)
+  }
+})
+
+// —— 源通道：把远端文件（公版书 EPUB/TXT 等）落到本地，供书架导入 ——
+// 只接受 http(s)，限 120s 超时、400MB 上限，文件名做路径穿越清洗。
+ipcMain.handle('source-download', async (e, url, filename) => {
+  if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { error: 'invalid url' }
+  const MAX = 400 * 1024 * 1024
+  const dir = path.join(app.getPath('userData'), 'sources')
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 120000)
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    const safe = String(filename || 'download.bin')
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+      .replace(/^\.+/, '')
+      .slice(0, 120) || 'download.bin'
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': 'MAGI/2.2 (https://github.com/noemoe5/MAGI)' }
+    })
+    if (!res.ok) return { error: `HTTP ${res.status}` }
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (buf.length > MAX) return { error: '文件超过 400MB' }
+    const out = path.join(dir, safe)
+    fs.writeFileSync(out, buf)
+    return { path: out, size: buf.length }
+  } catch (err) {
+    return { error: String(err) }
+  } finally {
+    clearTimeout(timer)
+  }
+})
+
 // 用系统默认浏览器打开链接（查阅结果里的参考链接）
 ipcMain.handle('open-external', async (e, url) => {
   if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false
   try { await shell.openExternal(url); return true } catch { return false }
+})
+
+// 源导入：多选 JSON 源描述文件（.json / .txt），逐个读回文本
+// 单个文件读失败不影响其他文件，失败项带 error 字段返回给渲染层展示
+ipcMain.handle('import-source-files', async () => {
+  const res = await dialog.showOpenDialog(null, {
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: '源定义 (JSON)', extensions: ['json', 'txt'] },
+      { name: '全部文件', extensions: ['*'] }
+    ]
+  })
+  if (res.canceled || !res.filePaths.length) return []
+  return res.filePaths.map((p) => {
+    const name = path.basename(p)
+    try {
+      if (fs.statSync(p).size > 2 * 1024 * 1024) return { name, error: '文件超过 2MB' }
+      return { name, text: fs.readFileSync(p, 'utf-8') }
+    } catch (err) {
+      return { name, error: String(err) }
+    }
+  })
 })
 
 // 选一个 JSON 文件并读取（导入本地知识库 / 文献库）

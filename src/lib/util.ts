@@ -35,8 +35,10 @@ export function encodeMediaPath(p: string): string {
     .replace(/=+$/, '')
 }
 
-/** 本地媒体路径 → http URL（经主进程媒体服务器；未就绪时返回空串） */
+/** 本地媒体路径 → http URL（经主进程媒体服务器；未就绪时返回空串）。
+ *  远程直链（音乐源的试听地址）原样透传，不走本地媒体服务器。 */
 export function mediaUrl(p: string): string {
+  if (/^https?:\/\//i.test(p) || p.startsWith('data:') || p.startsWith('blob:')) return p
   const base = (window as any).electronAPI?.mediaBaseUrl?.() || ''
   return base ? base + encodeMediaPath(p) : ''
 }

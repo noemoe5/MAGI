@@ -1,0 +1,48 @@
+[
+  {
+    "id": "demo-itunes-music",
+    "name": "iTunes 示例源",
+    "kinds": ["music"],
+    "note": "自定义源格式示例：Apple 官方 30 秒试听直链，命中即可播放",
+    "homepage": "https://www.apple.com/itunes/",
+    "search": {
+      "url": "https://itunes.apple.com/search?term={query}&media=music&limit={limit}",
+      "list": "results",
+      "fields": {
+        "id": "trackId",
+        "title": "trackName",
+        "subtitle": "artistName",
+        "cover": "artworkUrl100",
+        "year": "releaseDate",
+        "playUrl": "previewUrl",
+        "openUrl": "trackViewUrl"
+      }
+    }
+  },
+  {
+    "id": "demo-itunes-album",
+    "name": "iTunes 专辑示例",
+    "kinds": ["music"],
+    "note": "演示 detail 段：先搜专辑，进详情再按 id 拉曲目列表",
+    "search": {
+      "url": "https://itunes.apple.com/search?term={query}&media=music&entity=album&limit={limit}",
+      "list": "results",
+      "fields": {
+        "id": "collectionId",
+        "title": "collectionName",
+        "subtitle": "artistName",
+        "cover": "artworkUrl100",
+        "year": "releaseDate"
+      }
+    },
+    "detail": {
+      "url": "https://itunes.apple.com/lookup?id={id}&entity=song&limit=50",
+      "leaves": "results",
+      "leafFields": {
+        "id": "trackId",
+        "title": "trackName",
+        "playUrl": "previewUrl"
+      }
+    }
+  }
+]

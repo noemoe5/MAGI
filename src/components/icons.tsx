@@ -45,6 +45,12 @@ export const IconTag = svg(<><path d='M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9z' 
 export const IconNote = svg(<><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' /><polyline points='14 2 14 8 20 8' /><line x1='8' y1='13' x2='16' y2='13' /><line x1='8' y1='17' x2='13' y2='17' /></>)
 export const IconChevron = svg(<polyline points='9 18 15 12 9 6' />)
 
+// —— 发现 / 源通道 ——
+export const IconCompass = svg(<><circle cx='12' cy='12' r='9' /><polygon points='15.5 8.5 13.5 13.5 8.5 15.5 10.5 10.5' /></>)
+export const IconDownload = svg(<><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' /><polyline points='7 10 12 15 17 10' /><line x1='12' y1='15' x2='12' y2='3' /></>)
+export const IconRefresh = svg(<><polyline points='23 4 23 10 17 10' /><polyline points='1 20 1 14 7 14' /><path d='M3.5 9a9 9 0 0 1 14.9-3.4L23 10' /><path d='M20.5 15a9 9 0 0 1-14.9 3.4L1 14' /></>)
+export const IconLayers = svg(<><polygon points='12 2 2 7 12 12 22 7 12 2' /><polyline points='2 17 12 22 22 17' /><polyline points='2 12 12 17 22 12' /></>)
+
 // —— 影音媒体 ——
 export const IconMusic = svg(<><path d='M9 18V5l12-2v13' /><circle cx='6' cy='18' r='3' /><circle cx='18' cy='16' r='3' /></>)
 export const IconFilm = svg(<><rect x='2' y='2' width='20' height='20' rx='2.18' ry='2.18' /><line x1='7' y1='2' x2='7' y2='22' /><line x1='17' y1='2' x2='17' y2='22' /><line x1='2' y1='12' x2='22' y2='12' /><line x1='2' y1='7' x2='7' y2='7' /><line x1='2' y1='17' x2='7' y2='17' /><line x1='17' y1='17' x2='22' y2='17' /><line x1='17' y1='7' x2='22' y2='7' /></>)

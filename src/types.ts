@@ -165,4 +165,4 @@ export interface AudioPrefs {
   lastIndex?: number
 }
 
-export type MediaSection = 'books' | 'music' | 'video'
+export type MediaSection = 'books' | 'music' | 'video' | 'discover'

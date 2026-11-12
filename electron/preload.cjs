@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // —— 文献查阅 ——
   lookupFetch: (url) => ipcRenderer.invoke('lookup-fetch', url),
+  // —— 源通道：通用请求（GET/POST 等，绕过渲染进程 CORS）+ 下载远端文件 ——
+  sourceRequest: (url, opts) => ipcRenderer.invoke('source-request', url, opts),
+  sourceDownload: (url, filename) => ipcRenderer.invoke('source-download', url, filename),
+  // 源导入：原生多选对话框，返回 [{ name, text } | { name, error }]
+  importSourceFiles: () => ipcRenderer.invoke('import-source-files'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   openJson: () => ipcRenderer.invoke('open-json'),
   saveJson: (defaultName, content) => ipcRenderer.invoke('save-json', defaultName, content),
