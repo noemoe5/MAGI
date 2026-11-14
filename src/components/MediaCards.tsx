@@ -96,6 +96,7 @@ export function VideoCard({ item, onPlay, progress }: { item: VideoItem; onPlay:
       <div className='meta'>
         <div className='name'>{item.name}</div>
         <div className='author'>
+          {item.kind === 'stream' ? `${tr(lang, 'netStreamBadge')} · ` : ''}
           {item.width ? `${item.width}×${item.height}` : ''}{item.width && pct > 0 ? ' · ' : ''}
           {pct > 0 ? `${tr(lang, 'watched')} ${Math.round(pct)}%` : ''}
         </div>

@@ -34,6 +34,13 @@ function normalizeSpec(spec: any): CustomSourceSpec {
           leaves: spec.detail.leaves ?? undefined,
           leafFields: spec.detail.leafFields ?? undefined
         }
+      : undefined,
+    stream: spec.stream?.url
+      ? {
+          url: String(spec.stream.url),
+          headers: spec.stream.headers ?? undefined,
+          pick: spec.stream.pick ?? undefined
+        }
       : undefined
   }
 }
@@ -123,7 +130,7 @@ export function createCustomProvider(spec: CustomSourceSpec): SourceProvider {
           nativeId,
           title: String(pick(row, f.title) ?? '未命名'),
           subtitle: f.subtitle ? String(pick(row, f.subtitle) ?? '') : undefined,
-          cover: absolutize(url, pick(row, f.cover)),
+          cover: f.cover ? absolutize(url, pick(row, f.cover)) : undefined,
           year: f.year ? String(pick(row, f.year) ?? '') || undefined : undefined,
           playUrl: f.playUrl ? absolutize(url, pick(row, f.playUrl)) : undefined,
           downloadUrl: f.downloadUrl ? absolutize(url, pick(row, f.downloadUrl)) : undefined,
@@ -155,6 +162,18 @@ export function createCustomProvider(spec: CustomSourceSpec): SourceProvider {
         leaves,
         facts: []
       }
+    }
+  }
+
+  // 惰性取流：搜索只拿到 id，点播放时再换直链（落雪系音乐 API 的标准姿势）
+  if (spec.stream) {
+    const s = spec.stream
+    provider.resolveStream = async (hit): Promise<string | undefined> => {
+      const url = fillTemplate(s.url, { id: hit.nativeId, query: hit.nativeId, page: 1, limit: 1 })
+      const data = await fetchJSON<any>(url, { headers: s.headers ?? spec.search.headers })
+      const raw = pick(data, s.pick || 'url')
+      if (typeof raw !== 'string' || !raw.trim()) throw new SourceError('上游没给直链（可能需要登录或版权受限）')
+      return absolutize(url, raw)
     }
   }
 

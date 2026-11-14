@@ -5,7 +5,7 @@ import { useSourceStore } from '../sources/useSourceStore'
 import { searchAggregate } from '../sources'
 import { hitToTrack } from '../sources/builtin/music'
 import { importBook } from '../lib/import'
-import type { AggregateResult, SourceDetail, SourceHit, SourceKind } from '../sources/types'
+import type { AggregateResult, SourceDetail, SourceHit, SourceKind, SourceLeaf } from '../sources/types'
 import {
   IconSearch, IconClose, IconCompass, IconDownload, IconRefresh, IconExternal, IconPlay,
   IconPlus, IconChevron, IconSettings, IconList
@@ -45,6 +45,7 @@ export default function DiscoverPage() {
   const lang = useStore((s) => s.settings.lang)
   const activeProviders = useSourceStore((s) => s.activeProviders)
   const allProviders = useSourceStore((s) => s.allProviders)
+  const openStream = useStore((s) => s.openStream)
   const enabled = useSourceStore((s) => s.enabled)
   const customs = useSourceStore((s) => s.customs)
   const setManagerOpen = useSourceStore((s) => s.setManagerOpen)
@@ -178,8 +179,34 @@ export default function DiscoverPage() {
     }
   }
 
+  /** 直链可以在搜索结果里就带，也可以点播放时再向上游换（落雪系 API 都是后者） */
+  const canPlay = (hit: SourceHit) =>
+    hit.kind === 'music' && (!!hit.playUrl || !!allProviders().find((p) => p.id === hit.sourceId)?.resolveStream)
+
   const playMusic = async (hit: SourceHit) => {
-    const track = hitToTrack(hit)
+    let playable = hit
+    if (!hit.playUrl) {
+      const provider = allProviders().find((p) => p.id === hit.sourceId)
+      if (!provider?.resolveStream) {
+        setToast('该条目没有可播放直链')
+        return
+      }
+      setBusyId(hit.id)
+      try {
+        const url = await provider.resolveStream(hit)
+        if (!url) {
+          setToast('上游没有给出直链')
+          return
+        }
+        playable = { ...hit, playUrl: url }
+      } catch (e: any) {
+        setToast(`取流失败：${String(e?.message || e).slice(0, 60)}`)
+        return
+      } finally {
+        setBusyId(null)
+      }
+    }
+    const track = hitToTrack(playable)
     if (!track) {
       setToast('该条目没有可播放直链')
       return
@@ -226,6 +253,21 @@ export default function DiscoverPage() {
     const api = (window as any).electronAPI
     if (api?.openExternal) api.openExternal(url)
     else window.open(url, '_blank')
+  }
+
+  /** 有直链就交给播放器（网络流），没有就退回浏览器 */
+  const playStreamUrl = (url?: string, title?: string, poster?: string) => {
+    if (url && /^(https?|rtsp|rtmp|rtmps|mms):\/\//i.test(url)) {
+      openStream({ url, name: title, poster })
+      return true
+    }
+    return false
+  }
+
+  const playLeaf = (leaf: SourceLeaf) => {
+    const title = [selected?.title, leaf.title].filter(Boolean).join(' · ')
+    if (playStreamUrl(leaf.playUrl, title, selected?.cover)) return
+    openExternal(leaf.openUrl || selected?.openUrl)
   }
 
   const visibleProviders = useMemo(() => allProviders(), [allProviders, enabled, customs])
@@ -358,9 +400,14 @@ export default function DiscoverPage() {
                     <em>{hit.subtitle || hit.sourceName}</em>
                   </div>
                   <div className='dcard-actions' onClick={(e) => e.stopPropagation()}>
-                    {hit.kind === 'music' && hit.playUrl && (
+                    {canPlay(hit) && (
                       <button className='mini accent' disabled={busyId === hit.id} onClick={() => playMusic(hit)}>
                         <IconPlay size={12} /> 试听
+                      </button>
+                    )}
+                    {hit.kind === 'anime' && !!hit.playUrl && (
+                      <button className='mini accent' onClick={() => playStreamUrl(hit.playUrl, hit.title, hit.cover)}>
+                        <IconPlay size={12} /> 播放
                       </button>
                     )}
                     {hit.kind === 'book' && hit.downloadUrl && (
@@ -404,11 +451,16 @@ export default function DiscoverPage() {
                 </div>
               </div>
               <div className='dd-actions'>
-                {selected.kind === 'music' && selected.playUrl && (
+                {canPlay(selected) && (
                   <button className='btn accent' onClick={() => playMusic(selected)}><IconPlay size={13} /> 加入队列试听</button>
                 )}
                 {selected.kind === 'book' && selected.downloadUrl && (
                   <button className='btn accent' onClick={() => downloadBook(selected)}><IconDownload size={13} /> 下载并入库</button>
+                )}
+                {selected.kind === 'anime' && !!selected.playUrl && (
+                  <button className='btn accent' onClick={() => playStreamUrl(selected.playUrl, selected.title, selected.cover)}>
+                    <IconPlay size={13} /> 直接播放
+                  </button>
                 )}
                 {selected.openUrl && (
                   <button className='btn' onClick={() => openExternal(selected.openUrl)}><IconExternal size={13} /> 打开来源页</button>
@@ -437,7 +489,7 @@ export default function DiscoverPage() {
                   <h4>分集目录 <em>{detail.leaves.length}</em></h4>
                   <div className='leaf-list'>
                     {detail.leaves.map((l) => (
-                      <button key={l.id} className='leaf' onClick={() => openExternal(l.openUrl || selected.openUrl)}>
+                      <button key={l.id} className='leaf' onClick={() => playLeaf(l)}>
                         <span className='leaf-idx'>{l.index ?? ''}</span>
                         <span className='leaf-title'>{l.title}</span>
                         {l.subtitle && <em>{l.subtitle}</em>}

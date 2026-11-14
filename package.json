@@ -1,6 +1,6 @@
 {
   "name": "magi",
-  "version": "2.3.0",
+  "version": "2.5.0",
   "description": "MAGI - local media hub: novel reader + foobar-style music library + libVLC video player, built on Electron + React",
   "main": "electron/main.cjs",
   "author": "noemoe5",
@@ -37,6 +37,8 @@
     "probe:gesture": "node scripts/probe-gesture.mjs 9333",
     "probe:reader": "node scripts/probe-reader.mjs 9333",
     "test:gesture": "node --experimental-strip-types scripts/test-gesture-core.mjs",
+    "test:sources": "node scripts/test-sources.mjs",
+    "test:stream": "node scripts/test-stream-plan.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
   },

@@ -144,13 +144,16 @@ export function fillTemplate(tpl: string, vars: Record<string, string | number>)
 }
 
 /** 把相对图片地址补成绝对地址（自定义源常给 /cover/xx.jpg） */
-export function absolutize(base: string, url?: string): string | undefined {
-  if (!url) return undefined
-  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url
+export function absolutize(base: string, url?: unknown): string | undefined {
+  if (url == null) return undefined
+  // 上游偶尔给数字 ID 而不是字符串，直接强转，避免 .startsWith 抛错
+  const s = typeof url === 'string' ? url : String(url)
+  if (!s) return undefined
+  if (/^https?:\/\//i.test(s) || s.startsWith('data:')) return s
   try {
-    return new URL(url, base).toString()
+    return new URL(s, base).toString()
   } catch {
-    return url
+    return s
   }
 }
 

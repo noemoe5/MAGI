@@ -8,9 +8,32 @@ import { IconFilm, IconGrid, IconList, IconSearch, IconPlus, IconFolder, IconPla
 
 // 视频库页：导入后网格/列表展示，带断点进度
 export default function VideoLibrary() {
-  const { videoItems, videoProgress, settings, patchSettings, addVideoItems, openVideo } = useStore()
+  const { videoItems, videoProgress, settings, patchSettings, addVideoItems, openVideo, openStream } = useStore()
   const lang = settings.lang
   const [busy, setBusy] = useState(false)
+  const [streamOpen, setStreamOpen] = useState(false)
+  const [streamUrl, setStreamUrl] = useState('')
+  const [streamRef, setStreamRef] = useState('')
+  const [streamName, setStreamName] = useState('')
+  const [streamErr, setStreamErr] = useState('')
+
+  const playStream = () => {
+    const url = streamUrl.trim()
+    if (!/^(https?|rtsp|rtmp|rtmps|mms):\/\//i.test(url)) {
+      setStreamErr(tr(lang, 'netStreamInvalid'))
+      return
+    }
+    setStreamErr('')
+    openStream({
+      url,
+      name: streamName.trim() || undefined,
+      headers: streamRef.trim() ? { Referer: streamRef.trim() } : undefined
+    })
+    setStreamOpen(false)
+    setStreamUrl('')
+    setStreamRef('')
+    setStreamName('')
+  }
 
   const q = settings.search.trim().toLowerCase()
   let list = videoItems.filter((v) => {
@@ -61,10 +84,32 @@ export default function VideoLibrary() {
         <button className='btn' onClick={addDir} disabled={busy} title={tr(lang, 'scanFolder')}>
           <IconFolder size={15} /> {tr(lang, 'folder')}
         </button>
+        <button className='btn' onClick={() => setStreamOpen((v) => !v)} title={tr(lang, 'netStreamTitle')}>
+          <IconPlay size={14} /> {tr(lang, 'netStream')}
+        </button>
         <button className='btn accent' onClick={addFiles} disabled={busy}>
           {busy ? <span className='spin' /> : <><IconPlus size={15} /> {tr(lang, 'addVideo')}</>}
         </button>
       </div>
+
+      {streamOpen && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '0 16px 12px', alignItems: 'center' }}>
+          <input className='search' style={{ flex: '1 1 280px', minWidth: 220 }}
+            placeholder={tr(lang, 'netStreamUrl')} value={streamUrl} autoFocus
+            onChange={(e) => { setStreamUrl(e.target.value); setStreamErr('') }}
+            onKeyDown={(e) => { if (e.key === 'Enter') playStream() }} />
+          <input className='search' style={{ flex: '0 1 180px' }}
+            placeholder={tr(lang, 'netStreamReferer')} value={streamRef}
+            onChange={(e) => setStreamRef(e.target.value)} />
+          <input className='search' style={{ flex: '0 1 150px' }}
+            placeholder={tr(lang, 'netStreamName')} value={streamName}
+            onChange={(e) => setStreamName(e.target.value)} />
+          <button className='btn accent' onClick={playStream}><IconPlay size={14} /> {tr(lang, 'netStreamPlay')}</button>
+          <span style={{ flex: '1 0 100%', fontSize: 12, opacity: 0.65 }}>
+            {streamErr || tr(lang, 'netStreamHint')}
+          </span>
+        </div>
+      )}
 
       <div className='home'>
         {list.length === 0 ? (

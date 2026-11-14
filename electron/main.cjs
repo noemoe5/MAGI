@@ -808,20 +808,26 @@ async function teardownVideoLayer() {
 ipcMain.handle('video-vlc-available', () => ({ available: vlc.isVlcAvailable(), path: vlc.resolveVlcDir() }))
 
 // 打开一个视频：建窗 → 启 vlc（--wid 指向视频窗）→ 把初始状态推给覆盖层
+// payload.path 既可以是本地文件，也可以是 http(s)/rtsp 网络流（后者走 libvlc_media_new_location）
 ipcMain.handle('video-vlc-open', async (_e, payload) => {
-  const { id, path: file, name, duration = 0, startAt = 0, subtitleFiles = [], volume = 80 } = payload || {}
+  const { id, path: file, name, duration = 0, startAt = 0, subtitleFiles = [], volume = 80, headers = {}, networkCaching = 0 } = payload || {}
   if (!file) return { ok: false, error: 'no-file' }
   if (!vlc.isVlcAvailable()) return { ok: false, error: 'vlc-not-found' }
   if (!createVideoWindows()) return { ok: false, error: 'no-window' }
 
-  videoSession = { id, path: file, name: name || path.basename(file), duration, subs: subtitleFiles }
+  const isStream = /^(https?|rtsp|rtmp|rtmps|mms|ftp):\/\//i.test(String(file))
+  const fallbackName = isStream ? (() => {
+    try { return decodeURIComponent(new URL(file).pathname.split('/').filter(Boolean).pop() || '网络流') } catch { return '网络流' }
+  })() : path.basename(file)
+
+  videoSession = { id, path: file, name: name || fallbackName, duration, subs: subtitleFiles, isStream }
   if (vlcOffState) { vlcOffState(); vlcOffState = null }
   vlcOffState = vlc.onState((s) => {
     if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('vlc:state', s)
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vlc:state', s)
   })
 
-  const res = await vlc.start({ hostWindow: videoWin, file, startAt, subtitleFiles, volume })
+  const res = await vlc.start({ hostWindow: videoWin, file, startAt, subtitleFiles, volume, headers, networkCaching })
   pushVideoInit()
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('vlc:opened', { ...videoSession, ok: res.ok, error: res.error || null })

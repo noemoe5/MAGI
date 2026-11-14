@@ -52,6 +52,8 @@ let media = null          // libvlc_media_t*
 let pollTimer = null
 let vlcDir = null
 let currentFile = ''
+let currentHeaders = {}   // 网络流用的 HTTP 头（重载时要一并还原）
+let currentCaching = 0    // 网络缓冲毫秒，0 表示用默认
 let subVisible = true
 let lastSpu = -1          // 关闭字幕后记住原 spu id，恢复时用
 let currentSizeScale = 1  // 字幕相对字号（重载生效）
@@ -107,6 +109,9 @@ function bind() {
     errmsg: f('libvlc_errmsg', 'const char *', []),
     // media
     mediaNewPath: f('libvlc_media_new_path', 'void *', ['void *', 'const char *']),
+    // 网络流专用：本地路径走 new_path，http(s)/rtsp/rtmp 必须走 new_location，
+    // 否则 VLC 会把 "https://..." 当成相对文件名去找，直接 media-new-failed
+    mediaNewLocation: f('libvlc_media_new_location', 'void *', ['void *', 'const char *']),
     mediaAddOption: f('libvlc_media_add_option', 'void', ['void *', 'const char *']),
     mediaRelease: f('libvlc_media_release', 'void', ['void *']),
     // 播放器
@@ -166,6 +171,45 @@ function toVlcPath(p) {
   if (/^[a-zA-Z]:[\\/]/.test(s) || s.startsWith('\\\\')) return s.replace(/\//g, '\\')
   if (s.startsWith('/')) return path.resolve(s).replace(/\//g, '\\')
   return path.resolve(s)
+}
+
+/** 网络流判定：这些协议一律交给 libvlc_media_new_location，不能当文件路径处理 */
+const REMOTE_RE = /^(https?|rtsp|rtmp|rtmps|mms|ftp):\/\//i
+function isRemoteUrl(s) {
+  return typeof s === 'string' && REMOTE_RE.test(s.trim())
+}
+
+/**
+ * 纯函数：决定这条 source 该走哪条 libvlc 入口、要挂哪些 media option。
+ * 抽出来是为了能在没有 libvlc.dll 的机器上跑单测（scripts/test-stream-plan.mjs）。
+ */
+function planMedia(source, opts = {}) {
+  const remote = isRemoteUrl(source)
+  const src = remote ? String(source).trim() : toVlcPath(source)
+  /** @type {string[]} */
+  const options = []
+  if (remote) {
+    const headers = opts.headers || {}
+    const ua = headers['User-Agent'] || headers['user-agent'] || 'MAGI/2.4 (libVLC)'
+    options.push(`:http-user-agent=${ua}`)
+    const ref = headers.Referer || headers.referer
+    if (ref) options.push(`:http-referrer=${ref}`)
+    const caching = Math.max(500, Math.min(8000, Number(opts.networkCaching) || 1500))
+    options.push(`:network-caching=${caching}`)
+  }
+  return { remote, source: src, options }
+}
+
+/**
+ * 建 media：本地文件与网络流走两条不同的 libvlc 入口。
+ * 网络流额外挂 HTTP 头（多数站点有 Referer/UA 防盗链）和网络缓冲。
+ */
+function newMedia(source, opts = {}) {
+  const plan = planMedia(source, opts)
+  const m = plan.remote ? lib.mediaNewLocation(inst, plan.source) : lib.mediaNewPath(inst, plan.source)
+  if (!m) return null
+  for (const opt of plan.options) lib.mediaAddOption(m, opt)
+  return m
 }
 
 /** libvlc 实例参数。插件目录靠 VLC_PLUGIN_PATH + libvlc.dll 同级 plugins 定位。 */
@@ -269,15 +313,17 @@ async function start(opts) {
     return { ok: false, error: String(e.message || e) }
   }
 
-  const { hostWindow, file, startAt = 0, subtitleFiles = [], volume = 80 } = opts
-  const vfile = toVlcPath(file)
-  currentFile = vfile
+  const { hostWindow, file, startAt = 0, subtitleFiles = [], volume = 80, headers = {}, networkCaching = 0 } = opts
+  const remote = isRemoteUrl(file)
+  currentFile = remote ? String(file).trim() : toVlcPath(file)
+  currentHeaders = remote ? headers || {} : {}
+  currentCaching = networkCaching || 0
   subVisible = true
   lastSpu = -1
 
   try {
-    media = lib.mediaNewPath(inst, vfile)
-    if (!media) return { ok: false, error: 'media-new-failed' }
+    media = newMedia(currentFile, { headers: currentHeaders, networkCaching: currentCaching })
+    if (!media) return { ok: false, error: remote ? 'media-new-location-failed' : 'media-new-failed' }
 
     // 字幕字号/底部边距属于 vout 建窗时固定的参数，改了需要重载才生效
     if (currentSizeScale && currentSizeScale !== 1) {
@@ -569,7 +615,7 @@ async function reloadKeepingPosition() {
   const vol = currentState.volume
   const rate = currentState.speed
   try {
-    const nm = lib.mediaNewPath(inst, file)
+    const nm = newMedia(file, { headers: currentHeaders, networkCaching: currentCaching })
     if (!nm) return
     if (currentSizeScale && currentSizeScale !== 1) {
       const rel = Math.max(8, Math.min(60, Math.round(20 * currentSizeScale)))
@@ -609,5 +655,9 @@ module.exports = {
   onState,
   getState: () => currentState,
   shutdown,
+  // 纯函数，供无 libvlc 环境的单测使用
+  planMedia,
+  isRemoteUrl,
+  toVlcPath,
   engine: 'vlc'
 }

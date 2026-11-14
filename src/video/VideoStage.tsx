@@ -9,6 +9,7 @@
 // 如果机器上没有 vlc（或启动失败），自动退回原有 Vivid 形态的 <video> 播放器 —— 功能不丢。
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
+import { tr } from '../i18n'
 import VideoPlayer from '../components/VideoPlayer'
 
 const api = () => (window as any).electronAPI?.vlc
@@ -23,6 +24,7 @@ export default function VideoStage() {
   const openVideo = useStore((s) => s.openVideo)
   const saveVideoProgress = useStore((s) => s.saveVideoProgress)
   const prefs = useStore((s) => s.audioPrefs)
+  const lang = useStore((s) => s.settings.lang)
 
   const item = items.find((v) => v.id === playingId) || null
   const [mode, setMode] = useState<'probing' | 'vlc' | 'html5'>('probing')
@@ -41,17 +43,22 @@ export default function VideoStage() {
       if (cancelled) return
       if (!avail?.available) { setMode('html5'); return }
 
-      let subtitleFiles: string[] = []
-      try {
-        const side = await (window as any).electronAPI.mediaSidecar(item.path)
-        const subs = (side?.subtitles || []) as Array<{ path: string }>
-        // 默认挂上第一个中文字幕（没有就挂第一个），其余留给覆盖窗口的字幕菜单切换
-        const zh = subs.find((s: any) => /zh|chs|chi|简/i.test(s.path))
-        const pick = zh || subs[0]
-        if (pick) subtitleFiles = [pick.path]
-      } catch { /* ignore */ }
+      const isStream = item.kind === 'stream' || /^(https?|rtsp|rtmp|rtmps|mms):\/\//i.test(item.path)
 
-      const saved = progress[item.id]
+      let subtitleFiles: string[] = []
+      if (!isStream) {
+        try {
+          const side = await (window as any).electronAPI.mediaSidecar(item.path)
+          const subs = (side?.subtitles || []) as Array<{ path: string }>
+          // 默认挂上第一个中文字幕（没有就挂第一个），其余留给覆盖窗口的字幕菜单切换
+          const zh = subs.find((s: any) => /zh|chs|chi|简/i.test(s.path))
+          const pick = zh || subs[0]
+          if (pick) subtitleFiles = [pick.path]
+        } catch { /* ignore */ }
+      }
+
+      // 网络流通常没有可靠时长（直播/切片），不做断点续播
+      const saved = isStream ? undefined : progress[item.id]
       const startAt = saved && saved.position > 5 && (!item.duration || saved.position / item.duration < 0.95)
         ? saved.position : 0
 
@@ -62,6 +69,7 @@ export default function VideoStage() {
         duration: item.duration,
         startAt,
         subtitleFiles,
+        headers: item.headers,
         volume: prefs.muted ? 0 : Math.round((prefs.volume ?? 0.8) * 100)
       })
       if (cancelled) return
@@ -123,12 +131,13 @@ export default function VideoStage() {
   if (mode === 'html5' || !item) {
     // 退回内置播放器时要让人一眼看出「为什么画面不一样、手势也不一样」，
     // 否则用户只会觉得播放器坏了
+    const isStream = !!item && (item.kind === 'stream' || /^(https?|rtsp|rtmp|rtmps|mms):\/\//i.test(item.path))
     return (
       <>
         <VideoPlayer />
         {item && mode === 'html5' && (
-          <div className='vp-engine-note' title='找不到 libVLC：请确认 resources/vlc/libvlc.dll 存在，或执行 node scripts/fetch-vlc.mjs'>
-            未加载 libVLC · 已退回内置播放器
+          <div className='vp-engine-note' title={tr(lang, 'netStreamNoVlc')}>
+            {isStream ? tr(lang, 'netStreamNoVlc') : '未加载 libVLC · 已退回内置播放器'}
           </div>
         )}
       </>

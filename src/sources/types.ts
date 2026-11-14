@@ -70,6 +70,12 @@ export interface SourceProvider {
   defaultEnabled?: boolean
   search: (args: SearchArgs) => Promise<SourceHit[]>
   detail?: (hit: SourceHit, signal?: AbortSignal) => Promise<SourceDetail | null>
+  /**
+   * 惰性取流：搜索结果里没有直链时，UI 在「点播放」这一刻再按 id 换一次直链。
+   * 落雪系（GDStudio / 野草 / Meting 反代）音乐 API 都是「搜索给 id，取流再请求一次」，
+   * 搜索阶段不能替 40 条结果各打一次请求，所以拆成这一步。
+   */
+  resolveStream?: (hit: SourceHit, signal?: AbortSignal) => Promise<string | undefined>
 }
 
 /** 单源检索状态：UI 用来展示「哪个源挂了」而不是整体报错 */
@@ -116,6 +122,16 @@ export interface CustomSourceSpec {
     description?: string
     leaves?: string
     leafFields?: { id: string; title: string; playUrl?: string }
+  }
+  /**
+   * 惰性取流模板（音乐类常用）：搜索结果只给 id，点播放时再用这个 URL 换直链。
+   * 支持 {id} {query} 占位符，如 `.../api.php?types=url&source=netease&id={id}&br=320`
+   */
+  stream?: {
+    url: string
+    headers?: Record<string, string>
+    /** 响应里直链的点路径，默认 `url`；嵌套用点号，如 `data.url` */
+    pick?: string
   }
 }
 

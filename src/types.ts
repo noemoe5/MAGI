@@ -146,6 +146,12 @@ export interface VideoItem {
   height?: number
   size?: number
   addedAt: number
+  /** local = 本地文件；stream = 网络流（path 存的是 URL） */
+  kind?: 'local' | 'stream'
+  /** 网络流需要带的请求头（防盗链站点的 Referer / UA） */
+  headers?: Record<string, string>
+  /** 网络流封面（可选，来自源的封面图） */
+  poster?: string
 }
 
 export interface AudioPosition { pos: number; dur: number; at: number }

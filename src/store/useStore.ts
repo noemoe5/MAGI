@@ -111,6 +111,8 @@ interface StoreState {
 
   /** 视频播放控制 */
   openVideo: (id: string, queueIds?: string[]) => void
+  /** 直接播一个网络流（m3u8 / mp4 / rtsp）：没有条目就顺手建一个，便于回看 */
+  openStream: (input: { url: string; name?: string; headers?: Record<string, string>; poster?: string }) => void
   closeVideo: () => void
   videoNext: () => void
 }
@@ -124,6 +126,25 @@ const DEFAULT_AUDIO_PREFS: AudioPrefs = {
   lastCurrentId: null,
   lastQueue: [],
   lastIndex: -1
+}
+
+/** 由 URL 生成稳定短键（djb2），同一个流重复打开复用同一条目 */
+function streamKey(url: string): string {
+  let h = 5381
+  for (let i = 0; i < url.length; i++) h = ((h << 5) + h + url.charCodeAt(i)) >>> 0
+  return h.toString(36) + '_' + url.length.toString(36)
+}
+
+/** 从 URL 里猜个像样的标题：取最后一段路径并去掉扩展名 */
+function guessStreamName(url: string): string {
+  try {
+    const u = new URL(url)
+    const seg = u.pathname.split('/').filter(Boolean).pop() || ''
+    const clean = decodeURIComponent(seg).replace(/\.(m3u8|mp4|flv|mkv|ts|mpd)$/i, '').replace(/[_-]+/g, ' ').trim()
+    return clean || u.hostname
+  } catch {
+    return '网络流'
+  }
 }
 
 function snapshot(s: StoreState): LibraryData {
@@ -493,6 +514,31 @@ export const useStore = create<StoreState>((set, get) => {
       }
       if (!queue.includes(id)) queue = [id, ...queue]
       set({ videoPlayingId: id, videoQueue: queue })
+    },
+
+    openStream: (input) => {
+      const url = String(input.url || '').trim()
+      if (!/^(https?|rtsp|rtmp|rtmps|mms):\/\//i.test(url)) return
+      // id 由 URL 派生：同一个流反复打开不会堆出一堆重复条目，断点也能续上
+      const id = 'stream:' + streamKey(url)
+      const name = (input.name || '').trim() || guessStreamName(url)
+      const prev = get().videoItems.find((v) => v.id === id)
+      const item: VideoItem = {
+        id,
+        path: url,
+        name,
+        duration: prev?.duration || 0,
+        addedAt: prev?.addedAt || Date.now(),
+        kind: 'stream',
+        headers: input.headers,
+        poster: input.poster || prev?.poster
+      }
+      set((s) => ({
+        videoItems: [item, ...s.videoItems.filter((v) => v.id !== id)],
+        videoPlayingId: id,
+        videoQueue: [id]
+      }))
+      persist()
     },
 
     closeVideo: () => set({ videoPlayingId: null, videoQueue: [] }),

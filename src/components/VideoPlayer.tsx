@@ -81,7 +81,9 @@ export default function VideoPlayer() {
   useEffect(() => {
     const v = videoRef.current
     if (!v || !item) return
-    const url = mediaUrl(item.path)
+    // 网络流（path 是 URL）直接用；本地文件才走自定义协议取流
+    const isStream = item.kind === 'stream' || /^(https?|rtsp|rtmp|rtmps|mms):\/\//i.test(item.path)
+    const url = isStream ? item.path : mediaUrl(item.path)
     if (url) { v.src = url; v.load() }
     setTime(0); setDuration(item.duration || 0); setZoom(1); setPan({ x: 0, y: 0 }); setBrightness(1)
     kickHideTimer()

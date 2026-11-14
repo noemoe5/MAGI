@@ -1,0 +1,61 @@
+{
+  "format": "magi.sources",
+  "version": 1,
+  "note": "落雪音乐（LX Music）系接口的声明式写法。实测数据见 docs/source-connectivity-2026-11-14.md：GDStudio 的 网易云 搜索 + 取流可用，直链为 audio/mpeg 320k。",
+  "sources": [
+    {
+      "id": "gdstudio-netease",
+      "name": "GDStudio · 网易云",
+      "kinds": ["music"],
+      "note": "落雪常用 API：搜索只给 id，点试听时再换 320k 直链",
+      "homepage": "https://music.gdstudio.xyz",
+      "search": {
+        "url": "https://music-api.gdstudio.xyz/api.php?types=search&source=netease&name={query}&count=24&pages={page}",
+        "fields": {
+          "id": "id",
+          "title": "name",
+          "subtitle": "artist",
+          "year": "album"
+        }
+      },
+      "stream": {
+        "url": "https://music-api.gdstudio.xyz/api.php?types=url&source=netease&id={id}&br=320",
+        "pick": "url"
+      }
+    },
+    {
+      "id": "gdstudio-joox",
+      "name": "GDStudio · JOOX",
+      "kinds": ["music"],
+      "note": "只作检索参考：该平台实测不给直链（url=null）",
+      "homepage": "https://music.gdstudio.xyz",
+      "search": {
+        "url": "https://music-api.gdstudio.xyz/api.php?types=search&source=joox&name={query}&count=24&pages={page}",
+        "fields": {
+          "id": "id",
+          "title": "name",
+          "subtitle": "artist",
+          "year": "album"
+        }
+      }
+    },
+    {
+      "id": "vkeys-netease",
+      "name": "野草 API · 网易云",
+      "kinds": ["music"],
+      "note": "自带封面、免登录；实测只能搜，取流返回 url=null",
+      "homepage": "https://api.vkeys.cn",
+      "search": {
+        "url": "https://api.vkeys.cn/v2/music/netease?word={query}&page={page}&num=24",
+        "list": "data",
+        "fields": {
+          "id": "id",
+          "title": "song",
+          "subtitle": "singer",
+          "cover": "cover",
+          "year": "album"
+        }
+      }
+    }
+  ]
+}

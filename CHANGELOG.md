@@ -6,6 +6,18 @@
 
 ### 新增
 
+- **网络流播放（libVLC 走 `media_new_location`）**：此前视频层只有 `libvlc_media_new_path`，只能开本地文件，所以「看番源给出 m3u8 直链」这条路是断的——源能搜到、能列分集，点播放没反应。现在补齐网络流入口：
+  - `electron/vlc.cjs` 新增 `planMedia()`（纯函数，判定本地/远程 + 该挂哪些 `media` option）与 `newMedia()`；远程走 `mediaNewLocation`，本地仍走 `mediaNewPath`，协议覆盖 `http/https/rtsp/rtmp/rtmps/mms/ftp`。
+  - 远程自动挂 `:http-referrer`（防盗链站点的 Referer）与 `:http-user-agent`，并按 `:network-caching` 给 1.5s 起播缓冲（可调，500–8000ms）。
+  - **视频库新增「网络流」入口**：地址 + Referer（可选）+ 名称（可选），回车即播；流条目以 `stream:<url hash>` 为 id 落盘，反复打开不堆重复条目。
+  - **发现页的分集/章节可直接进播放器**：分集带 `playUrl` 时不再无脑丢浏览器，先交给 libVLC；没有直链才退回「打开来源页」。音乐试听同样走这条。
+  - 网络流不做断点续播（直播/切片时长不可靠），也不去扫外挂字幕；没有 libVLC 时退回内置 `<video>` 并显示「网络流需要 libVLC」。
+  - 新增 `npm run test:stream`（22 条纯 node 断言，覆盖协议判定、Referer/UA 注入、缓冲夹取、本地路径不被误判为远程）。
+- **源通道支持「惰性取流」**（`SourceProvider.resolveStream` + 自定义源 `stream` 模板）：落雪系（GDStudio / 野草 / Meting 反代）音乐 API 的形状是「搜索只给 id，直链要再请求一次」，而旧契约只认「搜索结果自带 `playUrl`」，所以这类源搜得到却点不动。现在搜索阶段不预取 40 条直链，点「试听」时再按 `{id}` 换流，失败给明确 toast。
+  - 自定义源写法：`"stream": { "url": "...types=url&id={id}", "pick": "url" }`。
+  - 附带 `examples/sources/luoxue-music.json`（GDStudio 网易云 / JOOX / 野草），实测 320k 直链返回 `audio/mpeg` 可播。
+  - 新增 `npm run test:sources`：真实打网络跑「解析 → 搜索 → 取流 → 直链可播」四步自检。
+  - 连通性测试记录见 `docs/source-connectivity-2026-11-14.md`（含各端点耗时与失败原因）。
 - **发现（源通道）**：第三个分区不再只有本地库，新增「发现」页，把**动漫 / 书籍 / 音乐**三类外部内容接成同一条通道（`src/sources/`）。一次搜索、多源并行、结果互通：音乐命中可直接进播放队列，公版书命中可直接下载并入书架，动漫命中给出分集与正版观看入口。
   - 统一契约 `SourceProvider`（`search` / `detail`），内置源与用户自定义源走同一套接口，UI 只认 `SourceHit`，新增源不需要改页面。
   - 内置：**AniList**（GraphQL，动漫元数据主源）、**Jikan**（MAL，国内常不可达，默认关闭）、**古登堡计划**（Gutendex 公版书，EPUB/TXT 直接入库）、**iTunes**（30 秒官方试听直链）。
@@ -17,10 +29,12 @@
 
 ### 变更
 
+- 视频条目 `VideoItem` 增加 `kind`（`local` / `stream`）、`headers`、`poster` 三个可选字段。旧 `library.json` 不需要迁移，缺失即视为本地文件。
 - 左侧分区栏由「书架 / 音乐 / 视频」扩为四个分区，「发现」与本地库并列——MAGI 从纯本地播放器变成「本地库 + 聚合入口」的双形态。
 
 ### 修复
 
+- **自定义源只要没写 `cover` 字段就整源崩掉**：`fields.cover` 缺省时 `pick(row, undefined)` 返回的是整行对象，`absolutize()` 对对象调 `.startsWith` 抛 `url.startsWith is not a function`，表现为「搜索失败」且报错信息毫无指向性。已加 `f.cover ?` 守卫，`absolutize()` 也改成接受 `unknown` 并强转。
 - **鼠标划过视频就会快进/倒退、亮度乱跳**：两个播放器的手势层都没有判断「鼠标是否按下」，而 `pointermove` 在指针只是划过时也会连续触发；加上 `x0/y0` 初始为 0，`dx` 直接等于屏幕坐标，一动就超过阈值被判成「拖动进度」，左侧竖滑则被判成「调亮度」。结果是视频根本没法正常看。
   - 修法：手势判定抽成纯模块 `src/video/gestureCore.ts`，**没按下时一律返回 `ignore`**；起判阈值 8px 防手抖；方向判定改为「横向幅度 > 纵向 × 1.2 才算 seek」，斜着划不会再误判；`pointerup` / `pointercancel` 统一走 `gestureUp()` 复位，不会把手势状态带到下一次。
   - libVLC 覆盖层与内置 `<video>` 回退层共用同一套判定，不再各写一份各错一遍。
