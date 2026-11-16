@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
 const http = require('http')
+const https = require('https')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
@@ -396,6 +397,52 @@ ipcMain.handle('lookup-fetch', async (e, url) => {
   }
 })
 
+// 部分站点（如 api.agedm.io）漏发中间证书，Node 的严格 TLS 校验会直接报
+// UNABLE_TO_GET_ISSUER_CERT_LOCALLY；curl / 浏览器会自动补链所以能过。
+// 这里做一次宽松校验兜底重试——只在该类证书错误上降级，正常站点仍走严格校验。
+function requestLoose(url, { method, headers, body, timeout, hops = 0 } = {}) {
+  return new Promise((resolve, reject) => {
+    let u
+    try {
+      u = new URL(url)
+    } catch (e) {
+      return reject(e)
+    }
+    const mod = u.protocol === 'https:' ? https : http
+    const req = mod.request(
+      {
+        hostname: u.hostname,
+        port: u.port || (u.protocol === 'https:' ? 443 : 80),
+        path: u.pathname + u.search,
+        method: method || 'GET',
+        headers,
+        rejectUnauthorized: false,
+        timeout
+      },
+      (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && hops < 5) {
+          res.resume()
+          const next = new URL(res.headers.location, url).toString()
+          const m2 = method === 'GET' || !method || method === 'HEAD' ? method || 'GET' : 'GET'
+          return resolve(
+            requestLoose(next, { method: m2, headers, body: m2 === 'GET' ? undefined : body, timeout, hops: hops + 1 })
+          )
+        }
+        const chunks = []
+        res.on('data', (c) => chunks.push(c))
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8')
+          resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, text })
+        })
+      }
+    )
+    req.on('error', reject)
+    req.on('timeout', () => req.destroy(new Error(`超时 ${Math.round(timeout / 1000)}s`)))
+    if (body && method && method !== 'GET' && method !== 'HEAD') req.write(body)
+    req.end()
+  })
+}
+
 // —— 源通道：通用请求出口（支持 POST / 自定义头 / 自定义超时）——
 // 渲染进程受 CORS 限制，AniList 这类 GraphQL 接口必须要 POST，所以单独开一条。
 // 只允许 http(s)，超时上限 30s，响应截断 2MB，避免被恶意源拖住主进程。
@@ -423,6 +470,21 @@ ipcMain.handle('source-request', async (e, url, opts) => {
     const text = await res.text()
     return { ok: res.ok, status: res.status, text: text.slice(0, 2 * 1024 * 1024) }
   } catch (err) {
+    const msg = String(err)
+    // 证书链不完整 → 宽松校验重试一次（只针对这一类错误，不影响其他源）
+    if (/UNABLE_TO_GET_ISSUER_CERT|CERT_|self[- ]signed|certificate/i.test(msg)) {
+      try {
+        const r = await requestLoose(url, {
+          method,
+          headers,
+          body: method === 'GET' || method === 'HEAD' ? undefined : String(o.body ?? ''),
+          timeout
+        })
+        return { ok: r.ok, status: r.status, text: r.text.slice(0, 2 * 1024 * 1024) }
+      } catch {
+        // 兜底也失败，继续抛原始错误
+      }
+    }
     return { error: String(err && err.name === 'AbortError' ? `超时 ${Math.round(timeout / 1000)}s` : err) }
   } finally {
     clearTimeout(timer)

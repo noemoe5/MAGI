@@ -1,12 +1,23 @@
 // 源注册表与聚合检索。
 // 上层（UI / store）只依赖这里：给一组启用中的 provider，拿回「合并结果 + 每源运行状态」。
 import { anilistSource, jikanSource } from './builtin/anime'
+import { agedmSource } from './builtin/age'
+import { dm84Source } from './builtin/dm84'
 import { gutenbergSource } from './builtin/book'
 import { itunesSource } from './builtin/music'
+import { luoxueSource } from './builtin/luoxue'
 import { createCustomProvider } from './custom'
 import type { AggregateResult, CustomSourceSpec, SourceHit, SourceKind, SourceProvider, SourceRunState } from './types'
 
-export const BUILTIN_SOURCES: SourceProvider[] = [anilistSource, jikanSource, gutenbergSource, itunesSource]
+export const BUILTIN_SOURCES: SourceProvider[] = [
+  anilistSource,
+  jikanSource,
+  agedmSource,
+  dm84Source,
+  gutenbergSource,
+  itunesSource,
+  luoxueSource
+]
 
 export function buildProviders(customs: CustomSourceSpec[]): SourceProvider[] {
   return [...BUILTIN_SOURCES, ...customs.map(createCustomProvider)]
